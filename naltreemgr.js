@@ -237,6 +237,7 @@ var TreeMgrSvc = function(params) {
             }
         }
     }
+    // Testing a change
     function branchInfoHandler(value) {
         const portID = value.portID;
         const treeID = value.envelope.getTreeID();
