@@ -99,18 +99,20 @@ this.FailoverMsg = function(params) {
     this.getBrokenBranch = function() { return branch; };
     return Object.freeze(this);
 };
-// FailoverStatus Message {treeID:treeID,status:status,brokenBranch:brokenBranch}
+// FailoverStatus Message {treeID:treeID,status:status,branch:branch,brokenBranch:brokenBranch}
 // Tell failover requester I am its new parent
 this.FailoverStatusMsg = function(params) {
     MsgFactory.call(this,"failoverStatus");
     const treeID = params.treeID;
     const status = params.status;
+    const branch = params.branch;
     const brokenBranch = params.brokenBranch;
-    const letter = {"treeID":treeID,"status":status,"brokenBranch":brokenBranch};
+    const letter = {"treeID":treeID,"status":status,"branch":branch,"brokenBranch":brokenBranch};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };
     this.getStatus = function() { return status; };
+    this.getBranch = function() { return branch; };
     this.getBrokenBranch = function() { return brokenBranch; };
     return Object.freeze(this);
 };

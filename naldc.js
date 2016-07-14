@@ -107,7 +107,7 @@ var DataCenterFactory = function(blueprint){
             const nnodes = params.nnodes;
             const offsetX = params.offsetX;
             const offsetY = params.offsetY;
-            const ncols = Math.min(6,Math.floor(Math.sqrt(nnodes)));
+            const ncols = Math.min(blueprint.maxCols,Math.floor(Math.sqrt(nnodes)));
             const x = offsetX + 100*(i - ncols*Math.trunc(i/ncols));
             const y = offsetY + 100*Math.trunc(i/ncols);
             return {"x":x,"y":y};
@@ -282,7 +282,7 @@ var DataCenterFactory = function(blueprint){
             return [x-adjx,y-adjy];
         };
         function mouseOver() {
-            d3.select("#tooltip").style("display","block");
+            if ( blueprint.tooltips ) d3.select("#tooltip").style("display","block");
             const xy = getLabelPosition(this);
             d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
             if ( that.delay ) that.timer = setTimeout(function() { dc.showTree(that.getID()); }, that.delay);
@@ -352,14 +352,14 @@ var DataCenterFactory = function(blueprint){
             }
             var resolvedMatchers = {};
             function matchPortReady(r) {
-                debugOutput("Wait on Port Ready " + label(ports[r]) + portReadyPromises[r].id);
+                debugOutput("Wait on Port Ready: " + label(ports[r]) + portReadyPromises[r].id);
                 portReadyPromises[r].then(function(value){
                     const svcID = value.target;
                     const matcher = matcherString(svcID,r);
-                    debugOutput("Port Ready " + label(ports[r]) + svcID + " Promise " + portReadyPromises[r].id);
+                    debugOutput("Port Ready: " + label(ports[r]) + svcID + " Promise " + portReadyPromises[r].id);
                     const promise = value.promise;
                     const resolver = makeResolver();
-                    debugOutput("Link Ack Resolve " + label(ports[r]) + " " + linkAckResolvers[r].id);
+                    debugOutput("Link Ack Resolve: " + label(ports[r]) + " " + linkAckResolvers[r].id);
                     value.promise = resolver.promise;
                     linkAckResolvers[r].fulfill(value);
                     linkAckResolvers[r] = resolver;
@@ -367,14 +367,14 @@ var DataCenterFactory = function(blueprint){
                     matchResolvers[matcher] = matchResolvers[matcher] || makeResolver();
                     matchResolvers[matcher] = makeResolver();
                     resolvedMatchers[matcher] = false;
-                    debugOutput("Match Ready " + label(ports[r]) + "Promise " + matchResolvers[matcher].id);
+                    debugOutput("Match Ready: " + label(ports[r]) + "Promise " + matchResolvers[matcher].id);
                     matchResolvers[matcher].promise.then(function(value) {
                         resolvedMatchers[matcher] = value.envelope;
-                        debugOutput("Match Ready Resolved " + label(ports[r]) + "Promise " + matchResolvers[matcher].id + " " + value.envelope.stringify());
+                        debugOutput("Match Ready Resolved: " + label(ports[r]) + "Promise " + matchResolvers[matcher].id + " " + value.envelope.stringify());
                         if ( value.target !== svcID ) throw "Promise mismatch";
                         const resolver = makeResolver();
                         value.promise = resolver.promise;
-                        debugOutput("Match Ready resolve receive " + label(ports[r]) + "svc " + svcID + " Promise " + receiveResolvers[r].id);
+                        debugOutput("Match Ready resolve receive: " + label(ports[r]) + "svc " + svcID + " Promise " + receiveResolvers[r].id);
                         receiveResolvers[r].fulfill(value);
                         receiveResolvers[r] = resolver;
                     });
@@ -383,19 +383,19 @@ var DataCenterFactory = function(blueprint){
                 },rejected);
             }
             function matchTransmit(t,r) {
-                debugOutput("Wait on Transmit " + label(ports[t]) + "Promise " + transmitPromises[t].id);
+                debugOutput("Wait on Transmit: " + label(ports[t]) + "Promise " + transmitPromises[t].id);
                 transmitPromises[t].then(function(value) {
                     const svcID = value.target;
                     const envelope = value.envelope;
                     const promise = value.promise;
                     const matcher = matcherString(svcID,r);
-                    debugOutput("Transmit " + label(ports[t]) + "Promise " + transmitPromises[t].id + " " + envelope.stringify());
+                    debugOutput("Transmit: " + label(ports[t]) + "Promise " + transmitPromises[t].id + " " + envelope.stringify());
                     if ( !matchResolvers[matcher] ) throw "Port not ready for svc " + svcID;
-                    debugOutput("Match Transmit resolve " + label(ports[t]) + "Promise " + matchResolvers[matcher].id);
+                    debugOutput("Match Transmit resolve: " + label(ports[t]) + "Promise " + matchResolvers[matcher].id);
                     // A hack to take care of sending multiple messages on one port
                     if ( resolvedMatchers[matcher] ) {
-                        debugOutput("Previously matched " + label(ports[t]) + matcher + " " + value.envelope.stringify());
-                        debugOutput("Previously matched " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
+                        debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + value.envelope.stringify());
+                        debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
                         receiveResolvers[r].fulfill(value);
                         receiveResolvers[r] = makeResolver();
                     } else {
@@ -492,7 +492,7 @@ var DataCenterFactory = function(blueprint){
                        "empty":emptyRecvResolvers};
             const svc = new Constructor(params2);
             services[svc.getID()] = svc;
-            debugOutput("New Service " + svc.getType() + " " + label + svc.getLabel());
+            debugOutput("New Service: " + svc.getType() + " " + label + svc.getLabel());
             return svc;
         };
         this.removeService = function(service) {
@@ -551,15 +551,15 @@ var DataCenterFactory = function(blueprint){
             this.getSendBuffers = function() { return sendBuffers; };
             this.getRecvBuffers = function() { return recvBuffers; };
             function waitOnRecvEmpty(promise) {
-                debugOutput("Wait on Recv Empty " + label + " Promise " + promise.id);
+                debugOutput("Wait on Recv Empty: " + label + " Promise " + promise.id);
                 promise.then(function(value) {
                     const svcID = value.target;
                     const promise = value.promise;
                     const resolver = makeResolver();
-                    debugOutput("Recv Empty " + label + "Promise " + promise.id);
+                    debugOutput("Recv Empty: " + label + "Promise " + promise.id);
                     const envelope = value.envelope;
                     value.promise = resolver.promise;
-                    debugOutput("Port ready resolve " + label + "Promise " + readyResolver.id);
+                    debugOutput("Port ready resolve: " + label + "Promise " + readyResolver.id);
                     readyResolver.fulfill(value);
                     readyResolver = resolver;
                     emptyRecvPromises[svcID] = promise;
@@ -567,14 +567,14 @@ var DataCenterFactory = function(blueprint){
                 },rejected);
             }
             function waitOnAck() {
-                debugOutput("Port Wait on Ack " + label + linkAckPromise.id);
+                debugOutput("Port Wait on Ack: " + label + linkAckPromise.id);
                 linkAckPromise.then(function(value) {
                     const svcID = value.target;
-                    debugOutput("Link Ack " + label + svcID + " Promise " + linkAckPromise.id);
+                    debugOutput("Link Ack: " + label + svcID + " Promise " + linkAckPromise.id);
                     const promise = value.promise;
                     const resolver = makeResolver();
                     value.promise = resolver.promise;
-                    debugOutput("Empty send resolve " + label + svcID + " Promise " + emptySendResolver.id);
+                    debugOutput("Empty send resolve: " + label + svcID + " Promise " + emptySendResolver.id);
                     emptySendResolver.fulfill(value);
                     emptySendResolver = resolver;
                     linkAckPromise = promise;
@@ -624,7 +624,7 @@ var DataCenterFactory = function(blueprint){
                     const svcID = value.target;
                     const envelope = value.envelope;
                     const promise = value.promise;
-                    debugOutput("Deliver resolve " + label + "Promise " + receivePromise.id + " " + envelope.stringify());
+                    debugOutput("Deliver resolve: " + label + "Promise " + receivePromise.id + " " + envelope.stringify());
                     const resolver = makeResolver();
                     value.promise = resolver.promise;
                     value.portID = id;
@@ -692,14 +692,14 @@ var DataCenterFactory = function(blueprint){
                 waitOnFill();
                 waitOnEmpty();
                 function waitOnFill() {
-                    debugOutput("Send Wait on Fill " + label + "Promise " + fillPromise.id);
+                    debugOutput("Send Wait on Fill: " + label + "Promise " + fillPromise.id);
                     fillPromise.then(function(value) {
                         const svcID = value.target;
                         const envelope = value.envelope;
                         const promise = value.promise;
-                        debugOutput("Send Fill " + label + "Promise " + fillPromise.id + " " + envelope.stringify());
+                        debugOutput("Send Fill: " + label + "Promise " + fillPromise.id + " " + envelope.stringify());
                         if ( buffer.getContents() === buffer.getDefaultContents() ) {
-                            debugOutput("Transmit resolve " + label + "Promise " + transmitResolver.id + " " + envelope.stringify());
+                            debugOutput("Transmit resolve: " + label + "Promise " + transmitResolver.id + " " + envelope.stringify());
                             const resolver = makeResolver();
                             value.promise = resolver.promise;
                             transmitResolver.fulfill(value);
@@ -708,7 +708,7 @@ var DataCenterFactory = function(blueprint){
                             buffer.setContents(buffer.getDefaultContents());
                         } else {
                             // Currently can't happen since buffer is emptied immediately
-                            debugOutput("Fill Wait on Fill " + label + " Promise " + fillPromise.id + " " + envelope.stringify());
+                            debugOutput("Fill Wait on Fill: " + label + " Promise " + fillPromise.id + " " + envelope.stringify());
                             console.error("Filling a filled buffer " + buffer.getContents().envelope.stringify());
                         }
                         fillPromise = promise;
@@ -716,13 +716,13 @@ var DataCenterFactory = function(blueprint){
                     },rejected);
                 }
                 function waitOnEmpty() {
-                    debugOutput("Send Wait on Empty " + label + "Promise " + emptyPromise.id);
+                    debugOutput("Send Wait on Empty: " + label + "Promise " + emptyPromise.id);
                     emptyPromise.then(function(value) {
-                        debugOutput("Send Empty resolved " + label + "Promise " + emptyPromise.id + " " + svcID + " " + value.envelope.stringify());
+                        debugOutput("Send Empty resolved: " + label + "Promise " + emptyPromise.id + " " + svcID + " " + value.envelope.stringify());
                         const promise = value.promise;
                         let resolver = makeResolver();
                         value.promise = resolver.promise;
-                        debugOutput("Send resolve " + label + "Promise " + sendResolver.id);
+                        debugOutput("Send resolve: " + label + "Promise " + sendResolver.id);
                         // Might happen while an unsent msg is in the buffer
                         if ( buffer.getContents() !== buffer.getDefaultContents() )
                             buffer.setContents(buffer.getDefaultContents());
@@ -748,9 +748,9 @@ var DataCenterFactory = function(blueprint){
                 waitOnEmpty();
                 waitOnDeliver();
                 function waitOnEmpty() {
-                    debugOutput("Recv Wait on Empty " + label + "Promise " + emptyPromise.id);
+                    debugOutput("Recv Wait on Empty: " + label + "Promise " + emptyPromise.id);
                     emptyPromise.then(function(value){
-                        debugOutput("Recv Buffer Empty " + label + "Promise " + emptyPromise.id);
+                        debugOutput("Recv Buffer Empty: " + label + "Promise " + emptyPromise.id);
                         const promise = value.promise;
                         buffer.setContents(buffer.getDefaultContents());
                         emptyPromise = promise;
@@ -758,12 +758,12 @@ var DataCenterFactory = function(blueprint){
                     },rejected);
                 }
                 function waitOnDeliver() {
-                    debugOutput("Recv Wait on Deliver " + label + "Promise " + deliverPromise.id);
+                    debugOutput("Recv Wait on Deliver: " + label + "Promise " + deliverPromise.id);
                     deliverPromise.then(function(value) {
                         const svcID = value.target;
                         const envelope = value.envelope;
                         const promise = value.promise;
-                        debugOutput("Recv Delivered " + label + "Promise " + deliverPromise.id + " " + envelope.stringify());
+                        debugOutput("Recv Delivered: " + label + "Promise " + deliverPromise.id + " " + envelope.stringify());
                         buffer.setContents(envelope);
                         deliverPromise = promise;
                         waitOnDeliver();
