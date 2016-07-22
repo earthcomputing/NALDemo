@@ -1,5 +1,5 @@
 'use strict';
-let traceMsgs = [52,53,54,55];
+let traceMsgs = [46,48,50,51,52,53,54];
 let config;
 let doTrace = false;
 let blueprint;
@@ -17,7 +17,7 @@ function setConfig(value) {
         document.getElementById("buildButton").disabled=false;
     }
     blueprint = {
-        "useGUIDs": false, "tooltips" : false, maxCols: 6,
+        "useGUIDs": false, "tooltips" : true, maxCols: 6,
         "showMsgs": traceMsgs, "msgFilter": "string to match",
         "nodes":config.nodes, "links":config.links,"nports":config.nports};       
     linkDisplayParams = {
@@ -33,7 +33,7 @@ function setConfig(value) {
                    "root":"noderoot",
                    "broken":"nodebroken",},
         "eventData":{"delay":250},
-        "attrs":{"r":10,"offsetX":20,"offsetY":20,
+        "attrs":{"r":10,"offsetX":120,"offsetY":20,
                  "xscale":config.xscale,"yscale":config.yscale,
                  "fill":"black"}};
 }
@@ -89,22 +89,21 @@ const debugMsgs = {
     46:"Send Branch Info: ",            // Failover
     47:"Forward Rediscover: ",          // 
     48:"Branch Info Handler: ",         //
-    49:"Inform new parent (nonchild):", //
-    50:"Inform old parent (nonchild):", //
-    51:"No failover:",                  //
-    52:"Failover: ",                    //
-    53:"Failover Handler: ",            //
-    54:"Failover Status Handler: ",     //
-    55:"Failover to child: ",           //
-    56:"Parent not connected: ",        //
+    49:"Inform new parent:",            //
+    50:"No failover:",                  //
+    51:"Failover: ",                    //
+    52:"Failover Handler: ",            //
+    53:"Failover Status Handler: ",     //
+    54:"Failover success: ",            //
+    55:"Parent not connected: ",        //
 };
 function configuration(configName) {
     const config = configurations[configName];
     if ( !config ) console.log("No configuration named " + configName);
     else           return config;
 }
-function traceOn() { doTrace = true; return "Trace on"; };
-function traceOff() { doTrace = false; return "Trace off"; };
+function traceOn() { doTrace = true; return "Trace on"; }
+function traceOff() { doTrace = false; return "Trace off"; }
 function trace(msgs) {
     if ( msgs ) {
         traceMsgs = [];
@@ -124,7 +123,7 @@ function recvBufferMsgs() { return sequence(29,32); }
 function serviceFactoryMsgs() { return sequence(33,40); }
 function treeMgrMsgs() { return sequence(41,45); }
 function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(46,56); }
+function failoverMsgs() { return sequence(46,55); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);

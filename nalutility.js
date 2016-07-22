@@ -1,3 +1,4 @@
+'use strict';
 let debugCount = 0;
 function debugOutput(msg,condition) {
     if ( !doTrace ) return;

@@ -1,3 +1,4 @@
+'use strict';
 window.onload = function() {
     const configForm = document.getElementById("configForm");
     const buildButton = document.getElementById("buildButton");

@@ -273,18 +273,19 @@ var DataCenterFactory = function(blueprint){
         this.display.on("mouseover",mouseOver);
         this.display.on("mouseleave",mouseLeave);
         function getLabelPosition(element) {
-            const tooltipPos = document.getElementById("tooltip").getBoundingClientRect();
-            const adjx = tooltipPos.width/2;
-            const adjy = tooltipPos.height/2;
-            const pos = element.getBoundingClientRect();
-            const x = (pos.right + pos.left)/2;
-            const y = (pos.bottom + pos.top)/2;
-            return [x-adjx,y-adjy];
+            // Following puts tooltip on the left side of the d3 canvas
+            const pos = document.getElementById("viz-container").getBoundingClientRect();
+            const x = pos.left;
+            const y = pos.top;
+            const adjx = 0;
+            const adjy = 50;
+            return [x+adjx,y+adjy];
         };
         function mouseOver() {
             if ( blueprint.tooltips ) d3.select("#tooltip").style("display","block");
             const xy = getLabelPosition(this);
-            d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
+            //d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
+            d3.select("#tooltip").html(that.getID()); // Fixed position relative to screen
             if ( that.delay ) that.timer = setTimeout(function() { dc.showTree(that.getID()); }, that.delay);
         }
         function mouseLeave() {

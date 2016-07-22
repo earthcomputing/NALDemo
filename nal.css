@@ -31,8 +31,10 @@
     fill : red;
 }
 #tooltip {
-    font-size: 70%;
+    font-size: 150%;
     position: fixed;
+    top: 30%;
+    left: 50;
     width: auto;
     height: auto;
     padding: 10px;

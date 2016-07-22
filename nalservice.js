@@ -1,3 +1,4 @@
+'use strict';
 let svcMsgs = 0;
 var ServiceFactory = function(params) {
     const svc = this;

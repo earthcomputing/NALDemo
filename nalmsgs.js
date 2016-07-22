@@ -1,3 +1,4 @@
+'use strict';
 // Message
 let countMsgs = 0;  // Used to debug message sends
 let msgCounts = {"total":0};
