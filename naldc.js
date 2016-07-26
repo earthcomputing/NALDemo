@@ -310,7 +310,7 @@ var DataCenterFactory = function(blueprint){
                     if ( c !== defaultClass ) classes[classList[c]] = false;
                 }
             }
-            that.display.classed(classes);
+            setTimeout(function() { that.display.classed(classes); }, 0);
         };
         function showAttr(attrs) {
             for ( let a in attrs ) {

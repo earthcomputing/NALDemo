@@ -34,6 +34,7 @@ window.onload = function() {
 function build() {
     d3.selectAll(".link").remove();
     d3.selectAll(".node").remove();
+    showTree = "";
     dataCenter = new DataCenterFactory(blueprint);
     dataCenter.showConfiguration({"tree":false,"root":false});
 }
