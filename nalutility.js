@@ -43,6 +43,12 @@ function clone(o) {
 function rejected(error) {
     console.error(JSON.stringify(error));
 }
+function getTraphs(node,tree) {
+    const nodes = dataCenter.getNodes();
+    const svcs = nodes[node].getServices();
+    const svc = svcs["S:TreeMgr"];
+    return svc.getTraphs()[tree];
+}
 // Copied from http://jcward.com/UUID.js for safety
 /**
  * Fast UUID generator, RFC4122 version 4 compliant.

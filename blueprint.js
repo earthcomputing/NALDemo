@@ -2,6 +2,7 @@
 let traceMsgs = [46,48,50,51,52,53,54];
 let config;
 let doTrace = false;
+let debugging = false;
 let blueprint;
 let linkDisplayParams;
 let nodeDisplayParams;
@@ -112,6 +113,14 @@ function trace(msgs) {
         }
         return traceOn();
     } else return traceOff();
+}
+function debuggingOn() { debugging = true; return "Debugging on"; }
+function debuggingOff() { debugging = false; return "Debugging off"; }
+function BREAKPOINT(condition,msg) {
+    if ( debugging && condition ) {
+        console.log(msg);
+        debugger;
+    }
 }
 function dataCenterMsgs() { return [1]; }
 function linkMsgs() { return sequence(2,11); }

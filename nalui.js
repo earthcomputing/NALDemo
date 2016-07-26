@@ -1,4 +1,5 @@
 'use strict';
+let showTree = "";
 window.onload = function() {
     const configForm = document.getElementById("configForm");
     const buildButton = document.getElementById("buildButton");
@@ -31,9 +32,12 @@ window.onload = function() {
     }
 };
 function build() {
+    d3.selectAll(".link").remove();
+    d3.selectAll(".node").remove();
     dataCenter = new DataCenterFactory(blueprint);
-    dataCenter.showConfiguration();
+    dataCenter.showConfiguration({"tree":false,"root":false});
 }
 function resetView() {
-    dataCenter.showConfiguration();
+    showTree = "";
+    dataCenter.showTree();
 }

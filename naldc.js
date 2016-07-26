@@ -209,6 +209,7 @@ var DataCenterFactory = function(blueprint){
     }
     this.showTree = function(treeID) {
         this.showConfiguration({"tree":false,"root":false});
+        if ( !treeID ) return;
         const tree = buildTrees()[treeID];
         for ( let edge in tree ) {
             const n1 = nodes[tree[edge][0]];
@@ -286,15 +287,19 @@ var DataCenterFactory = function(blueprint){
             const xy = getLabelPosition(this);
             //d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
             d3.select("#tooltip").html(that.getID()); // Fixed position relative to screen
-            if ( that.delay ) that.timer = setTimeout(function() { dc.showTree(that.getID()); }, that.delay);
+            //console.log("mouseOver: " + isReset);
+            if ( that.delay ) {
+                showTree = showTree || that.getID();
+                that.timer = setTimeout(function() { dc.showTree(showTree); }, that.delay);
+            }
         }
         function mouseLeave() {
             if ( that.delay ) clearTimeout(that.timer);
             d3.select("#tooltip").style("display","none");
-            dc.showConfiguration({"tree":false,"root":false}); 
+            //dc.showConfiguration({"tree":false,"root":false}); 
         }
         that.show = function(classChanges,attrChanges) {
-            showAttr(attrs);
+            if ( !attrChanges ) showAttr(attrs);
             showAttr(attrChanges);
             if ( classChanges ) {
                 for ( let c in classChanges ) {
@@ -424,7 +429,7 @@ var DataCenterFactory = function(blueprint){
                 ports.L.disconnect();
                 ports.R.disconnect();
                 that.show({"broken":true});
-            }
+                setTimeout(function() { dc.showTree(showTree); }, 0);            }
         };
         this.reconnect = function() {
             // Commented out until I implement port reconnect
