@@ -65,6 +65,7 @@ const configurations = {
     },
     "baranDistributed": {
         "name":"Baran Distributed",
+        "nports":6,
         "xscale":3, "yscale":3,
         "nodes":[
             { "name": "a", "x": 2.6248, "y": 2.2 },

@@ -45,9 +45,11 @@ function rejected(error) {
 }
 function getTraphs(node,tree) {
     const nodes = dataCenter.getNodes();
-    const svcs = nodes[node].getServices();
-    const svc = svcs["S:TreeMgr"];
-    return svc.getTraphs()[tree];
+    if ( nodes[node] ) {
+        const svcs = nodes[node].getServices();
+        const svc = svcs["S:TreeMgr"];
+        return svc.getTraphs()[tree];
+    } else return "No node named " + node;
 }
 // Copied from http://jcward.com/UUID.js for safety
 /**

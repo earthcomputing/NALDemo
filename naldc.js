@@ -395,17 +395,20 @@ var DataCenterFactory = function(blueprint){
                     const envelope = value.envelope;
                     const promise = value.promise;
                     const matcher = matcherString(svcID,r);
-                    debugOutput("Transmit: " + label(ports[t]) + "Promise " + transmitPromises[t].id + " " + envelope.stringify());
-                    if ( !matchResolvers[matcher] ) throw "Port not ready for svc " + svcID;
-                    debugOutput("Match Transmit resolve: " + label(ports[t]) + "Promise " + matchResolvers[matcher].id);
-                    // A hack to take care of sending multiple messages on one port
-                    if ( resolvedMatchers[matcher] ) {
-                        debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + value.envelope.stringify());
-                        debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
-                        receiveResolvers[r].fulfill(value);
-                        receiveResolvers[r] = makeResolver();
-                    } else {
-                        matchResolvers[matcher].fulfill(value);
+                    // Don't transmit on broken link - Need to do something when link is fixed
+                    if ( !that.isBroken() ) {
+                        debugOutput("Transmit: " + label(ports[t]) + "Promise " + transmitPromises[t].id + " " + envelope.stringify());
+                        if ( !matchResolvers[matcher] ) throw "Port not ready for svc " + svcID;
+                        debugOutput("Match Transmit resolve: " + label(ports[t]) + "Promise " + matchResolvers[matcher].id);
+                        // A hack to take care of sending multiple messages on one port
+                        if ( resolvedMatchers[matcher] ) {
+                            debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + value.envelope.stringify());
+                            debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
+                            receiveResolvers[r].fulfill(value);
+                            receiveResolvers[r] = makeResolver();
+                        } else {
+                            matchResolvers[matcher].fulfill(value);
+                        }
                     }
                     transmitPromises[t] = promise;
                     matchTransmit(t,r);
@@ -537,6 +540,7 @@ var DataCenterFactory = function(blueprint){
         let publicFns = this;
         // Port Factory
         function PortFactory(params) {
+            const port = this;
             const id = params.id;
             const node = params.node;
             let label = id + " " + node.getID() +" ";
@@ -676,8 +680,7 @@ var DataCenterFactory = function(blueprint){
                 let contents = defaultContents;
                 this.getID = function() { return id; };
                 this.getSvcID = function() { return svcID; };
-                this.getContents = function() {
-                    return contents; };
+                this.getContents = function() { return contents; };
                 this.setContents = function(value) {
                     if ( !value && value !== "" ) debugOutput("Buffer Contents Undefined");
                     contents = value;

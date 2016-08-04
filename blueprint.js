@@ -1,5 +1,6 @@
 'use strict';
-let traceMsgs = [46,48,50,51,52,53,54];
+let traceMsgs = failoverMsgs();
+let breakpointTest = 'treeID === "d"';
 let config;
 let doTrace = false;
 let debugging = false;
@@ -88,15 +89,17 @@ const debugMsgs = {
     44:"Forward Discover: ",            //
     45:"Recv Empty Delivered: ",        //
     46:"Send Branch Info: ",            // Failover
-    47:"Forward Rediscover: ",          // 
-    48:"Branch Info Handler: ",         //
-    49:"Inform new parent:",            //
-    50:"No failover:",                  //
-    51:"Failover: ",                    //
-    52:"Failover Handler: ",            //
+    48:"Forward Rediscover: ",          // 
+    49:"No failover:",                  //
+    50:"Failover: ",                    //
+    51:"Failover Handler: ",            //
+    52:"Failover success: ",            //
     53:"Failover Status Handler: ",     //
-    54:"Failover success: ",            //
-    55:"Parent not connected: ",        //
+    54:"Inform new parent: ",           //
+    55:"Inform old parend: ",           //
+    56:"Send Rediscover: ",             //
+    57:"Rediscover Handler: ",          //
+    58:"Rediscovered Handler: ",        //
 };
 function configuration(configName) {
     const config = configurations[configName];
@@ -132,7 +135,7 @@ function recvBufferMsgs() { return sequence(29,32); }
 function serviceFactoryMsgs() { return sequence(33,40); }
 function treeMgrMsgs() { return sequence(41,45); }
 function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(46,55); }
+function failoverMsgs() { return sequence(46,58); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);
