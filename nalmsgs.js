@@ -103,13 +103,15 @@ this.FailoverStatusMsg = function(params) {
     const treeID = params.treeID;
     const status = params.status;
     const branch = params.branch;
+    const hops = params.hops;
     const brokenBranch = params.brokenBranch;
-    const letter = {"treeID":treeID,"status":status,"branch":branch,"brokenBranch":brokenBranch};
+    const letter = {"treeID":treeID,"status":status,"branch":branch,"hops":hops,"brokenBranch":brokenBranch};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };
     this.getStatus = function() { return status; };
     this.getBranch = function() { return branch; };
+    this.getHops = function() { return hops; };
     this.getBrokenBranch = function() { return brokenBranch; };
     return Object.freeze(this);
 };

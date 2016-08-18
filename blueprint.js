@@ -1,6 +1,6 @@
 'use strict';
 let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "d"';
+let breakpointTest = 'treeID === "d" && svc.getNodeID() === "u"';
 let config;
 let doTrace = false;
 let debugging = false;
