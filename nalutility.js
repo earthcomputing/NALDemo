@@ -2,17 +2,30 @@
 let debugCount = 0;
 function debugOutput(msg,condition) {
     if ( !doTrace ) return;
+    const msgPlus = getSourceLine() + ": " + msg;
     // Always display messages that matches the blueprint filter
-    if ( msg.indexOf(blueprint.msgFilter) >= 0 ) console.debug(debugCount++,msg);
+    if ( msg.indexOf(blueprint.msgFilter) >= 0 ) console.debug(debugCount++,msgPlus);
     // Never display a message that doesn't satisfy the specified condition
     if ( !((condition === undefined) || condition) ) return;
     // Display all messages
-    if ( blueprint.showMsgs.length === 0 ) console.debug(debugCount++,msg);
+    if ( blueprint.showMsgs.length === 0 ) console.debug(debugCount++,msgPlus);
     // Display requested messages
     blueprint.showMsgs.forEach(function(msgIndex) {
-        if ( msg.indexOf(debugMsgs[msgIndex]) === 0 ) console.debug(debugCount++,msg);
+        if ( msg.indexOf(debugMsgs[msgIndex]) === 0 ) console.debug(debugCount++,msgPlus);
     });
 }
+// Get the line number of the call
+function getSourceLine() {
+    try { throw Error("") } catch(err) {
+        const caller_line = err.stack.split("\n")[4];
+        const index = caller_line.indexOf("at ");
+        const clean = caller_line.slice(index+2, caller_line.length);
+        const trimmed = clean.split("/").pop().split(":");
+        trimmed.pop();
+        return trimmed.join(" ");
+    }
+}
+let rcount = 0; // Used to debug promises
 function makeResolver() {
     let result = {};
     result.promise = new Promise(function(fulfill,reject){
@@ -43,13 +56,75 @@ function clone(o) {
 function rejected(error) {
     console.error(JSON.stringify(error));
 }
-function getTraphs(node,tree) {
+function getTraph(node,tree) {
     const nodes = dataCenter.getNodes();
     if ( nodes[node] ) {
         const svcs = nodes[node].getServices();
         const svc = svcs["S:TreeMgr"];
         return svc.getTraphs()[tree];
     } else return "No node named " + node;
+}
+function verifyPath(branch) {
+    let result;
+    const links = branch.split(',');
+    Object.keys(links).forEach(function(link) {
+        if ( brokenLinks[links[link]] ) result = branch;
+    });
+    return result;
+}
+function verifyTreePaths(treeID) {
+    const result = [];
+    const nodes = dataCenter.getNodes();
+    Object.keys(nodes).forEach(function(nodeID) {
+        const traph = getTraph(nodeID,treeID);
+        Object.keys(traph).forEach(function(t) {
+            if ( traph[t].isConnected ) {
+                const found = verifyPath(traph[t].branch);
+                if ( found ) result.push(traph[t]);
+            }
+        });
+    });
+    return result;
+}
+function verifyAllPaths() {
+    let result = [];
+    const nodes = dataCenter.getNodes();
+    Object.keys(nodes).forEach(function(nodeID) {
+        Object.keys(nodes).forEach(function(treeID) {
+            const traph = getTraph(nodeID,treeID);
+            Object.keys(traph).forEach(function(t) {
+                if ( traph[t].isConnected ) {
+                    const found = verifyPath(traph[t].branch);
+                    if ( result ) result.push(found);
+                }
+            });
+        });
+    });
+    return result;
+}
+function getPendingQ(nodeID) {
+    const nodes = dataCenter.getNodes();
+    const node = nodes[nodeID];
+    const treeMgr = node.getServices()["S:TreeMgr"];
+    return treeMgr.getPendingQ();
+}
+function getAllPendingQ() {
+    let output ={};
+    const nodes = dataCenter.getNodes();
+    Object.keys(nodes).forEach(function(nodeID) {
+        const queue = getPendingQ(nodeID);
+        const ports = nodes[nodeID].getPorts();
+        Object.keys(ports).forEach(function(portID) {
+            if ( ports[portID].isConnected() ) {
+                if ( queue[portID].length > 0 ) {
+                    output[nodeID] = output[nodeID] || {};
+                    output[nodeID][portID] = (output[nodeID][portID]||{});
+                    output[nodeID][portID] = queue[portID];
+                }
+            }
+        });
+    });
+    return output;
 }
 // Copied from http://jcward.com/UUID.js for safety
 /**

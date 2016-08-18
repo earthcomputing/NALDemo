@@ -17,6 +17,7 @@ var ServiceFactory = function(params) {
     this.getNports = function() { return node.getNports(); };
     this.getLabel = function() { return label; };
     this.getType = function() { return this.type; };
+    this.getPendingQ = function() { return pendingParams; };
     this.stop = function() {
         console.log("Stop " + id + " on " + node.getID()); };
     this.startSuper = function() {
@@ -24,7 +25,7 @@ var ServiceFactory = function(params) {
             emptyRecvBuffer(p,"Starting");
             waitOnDeliver(p);
         }
-    }
+    };
     function waitOnDeliver(p) {
         debugOutput("Svc Wait on Deliver: " + label + p + " Promise " + deliverPromises[p].id);
         deliverPromises[p].then(function(value) {
@@ -33,20 +34,16 @@ var ServiceFactory = function(params) {
             const type = value.envelope.getType();
             debugOutput("Svc Delivered: " + label + p + " Promise " + deliverPromises[p].id + " " + value.envelope.stringify());
             if ( dispatchTable[type] )       dispatchTable[type](value);
-            else if ( type === "recvEmpty" ) recvEmptyHandler(value);
             else                             throw "Unknown message type " + type;
             deliverPromises[p] = promise;
-            emptyRecvBuffer(p,value.envelope.stringify());
+            emptyRecvBuffer(p,"Processed");
             waitOnDeliver(p);
         });
     }
     function emptyRecvBuffer(p,msg) {
-        debugOutput("Empty recv resolve: " + label + p + " Promise " + emptyRecvResolvers[p].id + " " + msg);
+        debugOutput("Empty recv resolve: " + label + p + " Resolve " + emptyRecvResolvers[p].id);
         const resolver = makeResolver();
-        const emptyMsg = new RecvBufferEmptyMsg("Empty Recv Buffer");
-        emptyRecvResolvers[p].fulfill({"target":id,
-                                       "envelope":emptyMsg,
-                                       "promise":resolver.promise});
+        emptyRecvResolvers[p].fulfill({"target":id, "type":"emptyRecvBuffer: " + msg,"promise":resolver.promise});
         emptyRecvResolvers[p] = resolver;
     }
     function recvEmptyHandler(value) {
@@ -68,14 +65,15 @@ var ServiceFactory = function(params) {
         const p = params.port;
         const envelope = params.envelope;
         const target = params.target;
+        //BREAKPOINT(svc.getNodeID() === "N:1" && p === "P:1","Queue length = " + pendingParams[p].length + ", add msg " + envelope.id);
         pendingParams[p].push(params);
-        if ( ports[p].isConnected() ) debugOutput("Queuing message: " + svc.getLabel() + p + " " + envelope.stringify());
+        debugOutput("Queuing message: " + svc.getLabel() + p + " connected " + ports[p].isConnected()  + " queue size " + pendingParams[p].length + " " + envelope.stringify());
         if ( sendPromisesAvailable[p] ) {
             sendPromisesAvailable[p] = false;
             waitOnSendPromises();
         }
         function waitOnSendPromises(){        
-           if ( ports[p].isConnected() ) debugOutput("Wait on Send: " + svc.getLabel() + p + " Promise " + sendPromises[p].id + " " + pendingParams[p][0].envelope.stringify());
+            debugOutput("Wait on Send: " + svc.getLabel() + p + " connected " + ports[p].isConnected() + " Promise " + sendPromises[p].id + " " + pendingParams[p][0].envelope.stringify());
             sendPromises[p].then(function(value) {
                 const portID = value.portID;
                 const params = pendingParams[portID].shift();
@@ -83,7 +81,7 @@ var ServiceFactory = function(params) {
                 const svcID = params.target;
                 const p = params.port;
                 const envelope = params.envelope;
-                if ( ports[p].isConnected() ) debugOutput("Sending: " + svc.getLabel() + p + " Promise " + sendPromises[p].id + " " + envelope.stringify());
+                debugOutput("Sending: " + svc.getLabel() + p + " connected " + ports[p].isConnected()  + " Promise " + sendPromises[p].id + " Resolve " + fillResolvers[p].id + " " + envelope.stringify());
                 const promise = value.promise;
                 let resolver = makeResolver();
                 fillResolvers[p].fulfill({"portID":p,   // For debug only
@@ -94,8 +92,8 @@ var ServiceFactory = function(params) {
                                           "promise":resolver.promise});
                 fillResolvers[p] = resolver;
                 sendPromises[p] = promise;
+                //BREAKPOINT(svc.getNodeID() === "N:1" && p === "P:1","Queue length = " + pendingParams[p].length);
                 if ( pendingParams[portID].length > 0 ) {
-                    emptyRecvBuffer(p,value.envelope.stringify());
                     waitOnSendPromises();
                 } else sendPromisesAvailable[portID] = true;
                 svcMsgs++;

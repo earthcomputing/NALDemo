@@ -62,7 +62,7 @@ const debugMsgs = {
     17:"Link Ack: ",                    //
     18:"Empty send resolve: ",          //
     19:"Port Wait on Recv: ",           //
-    20:"Deliver resolve: ",             //
+    20:"Receive resolve: ",             //
     21:"Buffer Contents Undefined",     // BufferFactory
     22:"Send Wait on Fill: ",           // SendBuffer
     23:"Send Fill: ",                   //
@@ -83,12 +83,13 @@ const debugMsgs = {
     38:"Sending: ",                     //
     39:"Send start: ",                  // TreeMgrSvc
     40:"Discovered Handler: ",          //
-    41:"Discover Delivered: ",          //
+    41:"Discover Handler: ",            //
     42:"TreeMgrSvc add: ",              //
     43:"TreeMgrSvc services: ",         //
-    44:"Forward Discover: ",            //
-    45:"Recv Empty Delivered: ",        //
-    46:"Send Branch Info: ",            // Failover
+    44:"Discovered: ",                  //
+    45:"Forward Discover: ",            //
+    46:"Recv Empty Delivered: ",        //
+    47:"Send Branch Info: ",            // Failover
     48:"Forward Rediscover: ",          // 
     49:"No failover:",                  //
     50:"Failover: ",                    //
@@ -132,10 +133,10 @@ function portMsgs() { return sequence(13,20); }
 function bufferFactorMsgs() { return [21]; }
 function sendBufferMsgs() { return sequence(22,28); }
 function recvBufferMsgs() { return sequence(29,32); }
-function serviceFactoryMsgs() { return sequence(33,40); }
-function treeMgrMsgs() { return sequence(41,45); }
+function serviceFactoryMsgs() { return sequence(33,38); }
+function treeMgrMsgs() { return sequence(39,46); }
 function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(46,58); }
+function failoverMsgs() { return sequence(47,58); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);

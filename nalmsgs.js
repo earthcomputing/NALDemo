@@ -1,7 +1,16 @@
 'use strict';
 // Message
 let countMsgs = 0;  // Used to debug message sends
-let msgCounts = {"total":0};
+const msgCounts = {"total":0};
+let oldCounts = msgCounts;
+function msgDelta() {
+    const delta = {};
+    Object.keys(msgCounts).forEach(function(m) {
+        delta[m] = msgCounts[m] - (oldCounts[m] || 0);
+    });
+    oldCounts = clone(msgCounts);
+    return delta;
+}
 var MsgFactory = function(typeVal) {
     const type = typeVal;
     if ( !msgCounts[type] ) msgCounts[type] = 0;
@@ -35,12 +44,12 @@ this.TextMsg = function(txt) {
 this.SendBufferEmptyMsg = function() {
     TextMsg.call(this,"sendEmpty");
     const text = "TreeMgr Empty Send Buffer";
-}
+};
 // Recv Buffer Empty Message {}
 this.RecvBufferEmptyMsg = function() {
     TextMsg.call(this,"recvEmpty");
     const text = "TreeMgr Empty Recv Buffer";
-}
+};
 // Discover Message {sendingNode:nodeID,treeID:rootNodeID,hops:hops,branch:branch}
 this.DiscoverMsg = function(params) {
     MsgFactory.call(this,"discover");

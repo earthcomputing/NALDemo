@@ -35,8 +35,8 @@
 // Tree Manager Service - naltreemgr.js
 
 // Some constants used for debugging
-let rcount = 0; // Used to debug promises
 let dataCenter; // So I can see things from the console
+const brokenLinks = {}; // To debug bad updates to trie information
 // Start of actual code
 var DataCenterFactory = function(blueprint){ 
     const nodes = {};
@@ -325,14 +325,16 @@ var DataCenterFactory = function(blueprint){
         let that = this;
         let broken = false;
         const id = params.id;
+        brokenLinks[id] = false;
         this.isBroken = function() { return broken; };
         this.display.on("click",toggleBroken);
         // No free port => bad wiring diagram
-        let ports = {L:params.Lport,R:params.Rport};
-        let transmitPromises = {};
-        let portReadyPromises = {};
-        let linkAckResolvers = {L:makeResolver(),R:makeResolver()};
-        let receiveResolvers = {L:makeResolver(),R:makeResolver()};
+        const ports = {"L":params.Lport,"R":params.Rport};
+        const transmitPromises = {};
+        const portReadyPromises = {};
+        const matchResolvers = {"L":makeResolver(),"R":makeResolver()};
+        const linkAckResolvers = {"L":makeResolver(),"R":makeResolver()};
+        const receiveResolvers = {"L":makeResolver(),"R":makeResolver()};
         let promises = ports.L.setLink({"link":this,
                                     "linkAckPromise":linkAckResolvers.L.promise,
                                     "receivePromise":receiveResolvers.L.promise});
@@ -348,16 +350,61 @@ var DataCenterFactory = function(blueprint){
             return "Link " + id + " " + port.getNodeID() + " " + port.getID() + ": ";
         }
         function entangle() {
+            // Only works for one service per node
+            debugOutput("Entangle LR: " + label(ports.L) + " " + label(ports.R));
+            matchPromises("L","R");
+            matchPromises("R","L");
+            function matchPromises(t,r) {
+                waitOnPortReady(t,r);
+                waitOnMatch(t,r);
+            } 
+            function waitOnPortReady(t,r) {
+                debugOutput("Wait on Port Ready " + r + ": " + label(ports[r]) + "Promise " + portReadyPromises[r].id);
+                portReadyPromises[r].then(function(value){
+                    const svcID = value.target;
+                    debugOutput("Port Ready: " + label(ports[r]) + "Promise " + portReadyPromises[r].id + " Resolve " + matchResolvers[r].id);
+                    const promise = value.promise;
+                    const resolver = makeResolver();
+                    debugOutput("Link Ack Resolve: " + label(ports[r]) + "Resolve " + linkAckResolvers[t].id);
+                    value.promise = resolver.promise;
+                    linkAckResolvers[t].fulfill(value);
+                    linkAckResolvers[t] = resolver;
+                    matchResolvers[r].fulfill({"matchResolver":makeResolver()});
+                    portReadyPromises[r] = promise;
+                    waitOnPortReady(t,r);
+                });
+            }
+            function waitOnMatch(t,r) {
+                debugOutput("Wait on Transmit: " + label(ports[t]) + "Promises " + transmitPromises[t].id + ", " + matchResolvers[r].id);
+                Promise.all([transmitPromises[t],matchResolvers[r].promise]).then(function(values) {
+                    const envelope = values[0].envelope;
+                    const promise = values[0].promise;
+                    const resolver = makeResolver();
+                    debugOutput("Transmit: " + label(ports[t]) + "Promises " + transmitPromises[t].id + ", " + matchResolvers[r].id + " Resolve " + receiveResolvers[r].id + " " + envelope.stringify());
+                    BREAKPOINT(matchResolvers[r].id === 16093,"match resolver 16093");
+                    if ( !that.isBroken() ) {
+                        values[0].promise = resolver.promise;
+                        receiveResolvers[r].fulfill(values[0]);
+                        receiveResolvers[r] = resolver;
+                    }
+                    transmitPromises[t] = promise;
+                    matchResolvers[r] = values[1].matchResolver;
+                    waitOnMatch(t,r);
+                });
+            }
+        }
+        function entangle2() {
+            // Handles multiple services per node if each service has a unique name
             let matchResolvers = {};
             debugOutput("Entangle LR: " + label(ports.L) + " " + label(ports.R));
             matchPromises("L","R");
             matchPromises("R","L");
             function matchPromises(t,r) {
                 matchTransmit(t,r);
-                matchPortReady(r);
+                matchPortReady(t,r);
             }
             var resolvedMatchers = {};
-            function matchPortReady(r) {
+            function matchPortReady(t,r) {
                 debugOutput("Wait on Port Ready: " + label(ports[r]) + portReadyPromises[r].id);
                 portReadyPromises[r].then(function(value){
                     const svcID = value.target;
@@ -365,27 +412,28 @@ var DataCenterFactory = function(blueprint){
                     debugOutput("Port Ready: " + label(ports[r]) + svcID + " Promise " + portReadyPromises[r].id);
                     const promise = value.promise;
                     const resolver = makeResolver();
-                    debugOutput("Link Ack Resolve: " + label(ports[r]) + " " + linkAckResolvers[r].id);
+                    debugOutput("Link Ack Resolve: " + label(ports[r]) + "Resolve " + linkAckResolvers[t].id);
                     value.promise = resolver.promise;
-                    linkAckResolvers[r].fulfill(value);
-                    linkAckResolvers[r] = resolver;
+                    linkAckResolvers[t].fulfill(value);
+                    linkAckResolvers[t] = resolver;
                     // One per link no matter how many services
                     matchResolvers[matcher] = matchResolvers[matcher] || makeResolver();
-                    matchResolvers[matcher] = makeResolver();
                     resolvedMatchers[matcher] = false;
                     debugOutput("Match Ready: " + label(ports[r]) + "Promise " + matchResolvers[matcher].id);
                     matchResolvers[matcher].promise.then(function(value) {
+                        const matcher = matcherString(svcID,r);
                         resolvedMatchers[matcher] = value.envelope;
                         debugOutput("Match Ready Resolved: " + label(ports[r]) + "Promise " + matchResolvers[matcher].id + " " + value.envelope.stringify());
                         if ( value.target !== svcID ) throw "Promise mismatch";
                         const resolver = makeResolver();
                         value.promise = resolver.promise;
-                        debugOutput("Match Ready resolve receive: " + label(ports[r]) + "svc " + svcID + " Promise " + receiveResolvers[r].id);
+                        debugOutput("Match Ready resolve receive: " + label(ports[r]) + "svc " + svcID + " Resolve " + receiveResolvers[r].id);
                         receiveResolvers[r].fulfill(value);
                         receiveResolvers[r] = resolver;
+                        matchResolvers[matcher] = makeResolver();
                     });
                     portReadyPromises[r] = promise;
-                    matchPortReady(r);
+                    matchPortReady(t,r);
                 },rejected);
             }
             function matchTransmit(t,r) {
@@ -398,14 +446,18 @@ var DataCenterFactory = function(blueprint){
                     // Don't transmit on broken link - Need to do something when link is fixed
                     if ( !that.isBroken() ) {
                         debugOutput("Transmit: " + label(ports[t]) + "Promise " + transmitPromises[t].id + " " + envelope.stringify());
-                        if ( !matchResolvers[matcher] ) throw "Port not ready for svc " + svcID;
-                        debugOutput("Match Transmit resolve: " + label(ports[t]) + "Promise " + matchResolvers[matcher].id);
+                        if ( !matchResolvers[matcher] ) {
+                            console.log("Error: Port not ready for svc " + svcID);
+                            matchResolvers[matcher] = makeResolver();
+                        }
+                        debugOutput("Match Transmit resolve: " + label(ports[t]) + " Resolve " + matchResolvers[matcher].id);
                         // A hack to take care of sending multiple messages on one port
-                        if ( resolvedMatchers[matcher] ) {
-                            debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + value.envelope.stringify());
-                            debugOutput("Previously matched: " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
+                        if ( false && resolvedMatchers[matcher] ) {
+                            debugOutput("Previously matched old: " + label(ports[t]) + matcher + " " + resolvedMatchers[matcher].stringify());
+                            debugOutput("Previously matched new: " + label(ports[t]) + matcher + " " + value.envelope.stringify());
                             receiveResolvers[r].fulfill(value);
                             receiveResolvers[r] = makeResolver();
+                            resolvedMatchers[matcher] = false;
                         } else {
                             matchResolvers[matcher].fulfill(value);
                         }
@@ -415,7 +467,7 @@ var DataCenterFactory = function(blueprint){
                 },rejected);
             }
             function matcherString(svcID,r) {
-                return svcID + ports[r].getNodeID() + ports[r].getID();
+                return svcID + ports[r].getNodeID();
             }
         }
         this.getID = function() { return id; };
@@ -428,6 +480,7 @@ var DataCenterFactory = function(blueprint){
         this.disconnect = function() {
             if ( !broken ) { // Needed to end recursion with port.disconnect()
                 console.log("Disconnect link: " + id);
+                brokenLinks[id] = true; // To debug bad trie updates
                 broken = true;
                 ports.L.disconnect();
                 ports.R.disconnect();
@@ -439,6 +492,7 @@ var DataCenterFactory = function(blueprint){
             //broken = true;
             //if ( ports.L.isConnected() && ports.R.isConnected() ) broken = false;
             broken = false; // Needed until I implement port reconnect
+            brokenLinks[id] = false; // To debug bad trie updates
             that.show({"broken":broken});
             console.log("Reconnect link: " + id);
         };
@@ -563,17 +617,17 @@ var DataCenterFactory = function(blueprint){
             function waitOnRecvEmpty(promise) {
                 debugOutput("Wait on Recv Empty: " + label + " Promise " + promise.id);
                 promise.then(function(value) {
-                    const svcID = value.target;
-                    const promise = value.promise;
-                    const resolver = makeResolver();
                     debugOutput("Recv Empty: " + label + "Promise " + promise.id);
+                    const svcID = value.target;
+                    const nextPromise = value.promise;
+                    const resolver = makeResolver();
                     const envelope = value.envelope;
                     value.promise = resolver.promise;
-                    debugOutput("Port ready resolve: " + label + "Promise " + readyResolver.id);
+                    debugOutput("Port ready resolve: " + label + "Resolve " + readyResolver.id);
                     readyResolver.fulfill(value);
                     readyResolver = resolver;
                     emptyRecvPromises[svcID] = promise;
-                    waitOnRecvEmpty(promise);
+                    waitOnRecvEmpty(nextPromise);
                 },rejected);
             }
             function waitOnAck() {
@@ -584,7 +638,7 @@ var DataCenterFactory = function(blueprint){
                     const promise = value.promise;
                     const resolver = makeResolver();
                     value.promise = resolver.promise;
-                    debugOutput("Empty send resolve: " + label + svcID + " Promise " + emptySendResolver.id);
+                    debugOutput("Empty send resolve: " + label + svcID + " Resolve " + emptySendResolver.id);
                     emptySendResolver.fulfill(value);
                     emptySendResolver = resolver;
                     linkAckPromise = promise;
@@ -634,7 +688,7 @@ var DataCenterFactory = function(blueprint){
                     const svcID = value.target;
                     const envelope = value.envelope;
                     const promise = value.promise;
-                    debugOutput("Deliver resolve: " + label + "Promise " + receivePromise.id + " " + envelope.stringify());
+                    debugOutput("Receive resolve: " + label + "Promise " + receivePromise.id + " Resolve " + deliverResolvers[svcID].id + " " + envelope.stringify());
                     const resolver = makeResolver();
                     value.promise = resolver.promise;
                     value.portID = id;
@@ -706,9 +760,8 @@ var DataCenterFactory = function(blueprint){
                         const svcID = value.target;
                         const envelope = value.envelope;
                         const promise = value.promise;
-                        debugOutput("Send Fill: " + label + "Promise " + fillPromise.id + " " + envelope.stringify());
+                        debugOutput("Send Fill: " + label + "Promise " + fillPromise.id + " Resolve " + transmitResolver.id + " " + envelope.stringify());
                         if ( buffer.getContents() === buffer.getDefaultContents() ) {
-                            debugOutput("Transmit resolve: " + label + "Promise " + transmitResolver.id + " " + envelope.stringify());
                             const resolver = makeResolver();
                             value.promise = resolver.promise;
                             transmitResolver.fulfill(value);
@@ -727,11 +780,11 @@ var DataCenterFactory = function(blueprint){
                 function waitOnEmpty() {
                     debugOutput("Send Wait on Empty: " + label + "Promise " + emptyPromise.id);
                     emptyPromise.then(function(value) {
-                        debugOutput("Send Empty resolved: " + label + "Promise " + emptyPromise.id + " " + svcID + " " + value.envelope.stringify());
+                        debugOutput("Send Empty resolved: " + label + "Promise " + emptyPromise.id + " " + svcID);
                         const promise = value.promise;
                         let resolver = makeResolver();
                         value.promise = resolver.promise;
-                        debugOutput("Send resolve: " + label + "Promise " + sendResolver.id);
+                        debugOutput("Send resolve: " + label + "Promise " + emptyPromise.id + " Resolve " + sendResolver.id);
                         // Might happen while an unsent msg is in the buffer
                         if ( buffer.getContents() !== buffer.getDefaultContents() )
                             buffer.setContents(buffer.getDefaultContents());
