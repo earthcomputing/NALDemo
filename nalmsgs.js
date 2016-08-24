@@ -122,8 +122,9 @@ this.RediscoverMsg = function(params) {
     const treeID = params.treeID;
     const hops = params.hops;
     const branch = clone(params.branch);
+    const isParentBranch = params.isParentBranch;
     const brokenBranch = params.brokenBranch; // Only used for failover, undefined otherwise
-    const letter = {"sendingNode":nodeID,"treeID":treeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
+    const letter = {"sendingNode":nodeID,"treeID":treeID,"hops":hops,"branch":branch,"isParentBranch":isParentBranch,"brokenBranch":brokenBranch};
     // Discover msg always goes to TreeMgrSvc
     this.setLetter(letter);
     delete this.setLetter;
@@ -131,6 +132,7 @@ this.RediscoverMsg = function(params) {
     this.getTreeID = function() { return treeID; };
     this.getHops = function() { return hops; };
     this.getBranch = function() { return branch; };
+    this.getIsParentBranch = function() { return isParentBranch; };
     this.getBrokenBranch = function() { return brokenBranch; };
     return Object.freeze(this);
 };
@@ -150,5 +152,15 @@ this.RediscoveredMsg = function(params) {
     this.getBranch = function() { return branch; };
     this.getBrokenBranch = function() { return brokenBranch; };
     this.getSendingNodeID = function() { return nodeID; };
+    return Object.freeze(this);
+};
+// Undiscovered Message {treeID:rootNodeID}
+this.UndiscoveredMsg = function(params) {
+    MsgFactory.call(this,"undiscovered");
+    const treeID = params.treeID;
+    const letter = {"treeID":treeID};
+    this.setLetter(letter);
+    delete this.setLetter;
+    this.getTreeID = function() { return treeID; };
     return Object.freeze(this);
 };

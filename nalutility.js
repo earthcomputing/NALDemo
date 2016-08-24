@@ -3,15 +3,17 @@ let debugCount = 0;
 function debugOutput(msg,condition) {
     if ( !doTrace ) return;
     const msgPlus = getSourceLine() + ": " + msg;
-    // Always display messages that matches the blueprint filter
-    if ( msg.indexOf(blueprint.msgFilter) >= 0 ) console.debug(debugCount++,msgPlus);
+    // Display only messages that match the blueprint filter
+    let filter;
+    if ( msgFilter ) filter = msg.indexOf(msgFilter) >= 0;
+    else             filter = false;
     // Never display a message that doesn't satisfy the specified condition
     if ( !((condition === undefined) || condition) ) return;
     // Display all messages
-    if ( blueprint.showMsgs.length === 0 ) console.debug(debugCount++,msgPlus);
+    if ( blueprint.showMsgs.length === 0 && filter ) console.debug(debugCount++,msgPlus);
     // Display requested messages
     blueprint.showMsgs.forEach(function(msgIndex) {
-        if ( msg.indexOf(debugMsgs[msgIndex]) === 0 ) console.debug(debugCount++,msgPlus);
+        if ( msg.indexOf(debugMsgs[msgIndex]) === 0 && filter ) console.debug(debugCount++,msgPlus);
     });
 }
 // Get the line number of the call
@@ -95,7 +97,7 @@ function verifyAllPaths() {
             Object.keys(traph).forEach(function(t) {
                 if ( traph[t].isConnected ) {
                     const found = verifyPath(traph[t].branch);
-                    if ( result ) result.push(found);
+                    if ( found ) result.push(found);
                 }
             });
         });

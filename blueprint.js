@@ -1,6 +1,8 @@
 'use strict';
 let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "d" && svc.getNodeID() === "u"';
+let breakpointTest = 'treeID === "d"';
+let msgFilter = '"treeID":"d"';
+let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly"];
 let config;
 let doTrace = false;
 let debugging = false;
@@ -20,7 +22,7 @@ function setConfig(value) {
     }
     blueprint = {
         "useGUIDs": false, "tooltips" : true, maxCols: 6,
-        "showMsgs": traceMsgs, "msgFilter": "string to match",
+        "showMsgs": traceMsgs, 
         "nodes":config.nodes, "links":config.links,"nports":config.nports};       
     linkDisplayParams = {
         "shape":"line","before":".node",
@@ -97,7 +99,7 @@ const debugMsgs = {
     52:"Failover success: ",            //
     53:"Failover Status Handler: ",     //
     54:"Inform new parent: ",           //
-    55:"Inform old parend: ",           //
+    55:"Inform old parent: ",           //
     56:"Send Rediscover: ",             //
     57:"Rediscover Handler: ",          //
     58:"Rediscovered Handler: ",        //

@@ -36,12 +36,12 @@
 
 // Some constants used for debugging
 let dataCenter; // So I can see things from the console
-const brokenLinks = {}; // To debug bad updates to trie information
 // Start of actual code
 var DataCenterFactory = function(blueprint){ 
     const nodes = {};
     const links = {};
     let edgeList = {};
+    const brokenLinks = {};
     let trees;
     const nodeIDs = new IDFactory({prefix:"N:","isGUID":blueprint.useGUIDs});
     const linkIDs = new IDFactory({prefix:"L:","isGUID":blueprint.useGUIDs});
@@ -241,6 +241,13 @@ var DataCenterFactory = function(blueprint){
         return count
     }
     createDataCenter();
+    this.breakLinks = function(linkIDsToBreak) {
+        linkIDsToBreak.forEach(function(linkID) {
+            setTimeout(function(linKID) {
+                links[linkID].disconnect();
+            }, 0);
+        });
+    }
     var publicFns = this;
     // Generate unique IDs for physical resources - nodes, links
     function IDFactory(params) {
@@ -484,7 +491,7 @@ var DataCenterFactory = function(blueprint){
                 broken = true;
                 ports.L.disconnect();
                 ports.R.disconnect();
-                that.show({"broken":true});
+                that.show({"broken":broken});
                 setTimeout(function() { dc.showTree(showTree); }, 0);            }
         };
         this.reconnect = function() {
