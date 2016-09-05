@@ -62,7 +62,7 @@ function getTraph(node,tree) {
     const nodes = dataCenter.getNodes();
     if ( nodes[node] ) {
         const svcs = nodes[node].getServices();
-        const svc = svcs["S:TreeMgr"];
+        const svc = svcs[defaultSvcID];
         return svc.getTraphs()[tree];
     } else return "No node named " + node;
 }
@@ -70,7 +70,7 @@ function verifyPath(branch) {
     let result;
     const links = branch.split(',');
     Object.keys(links).forEach(function(link) {
-        if ( brokenLinks[links[link]] ) result = branch;
+        if ( dataCenter.brokenLinks[links[link]] ) result = branch;
     });
     return result;
 }
@@ -97,7 +97,7 @@ function verifyAllPaths() {
             Object.keys(traph).forEach(function(t) {
                 if ( traph[t].isConnected ) {
                     const found = verifyPath(traph[t].branch);
-                    if ( found ) result.push(found);
+                    if ( found ) result.push(traph[t]);
                 }
             });
         });
@@ -107,7 +107,7 @@ function verifyAllPaths() {
 function getPendingQ(nodeID) {
     const nodes = dataCenter.getNodes();
     const node = nodes[nodeID];
-    const treeMgr = node.getServices()["S:TreeMgr"];
+    const treeMgr = node.getServices()[defaultSvcID];
     return treeMgr.getPendingQ();
 }
 function getAllPendingQ() {

@@ -41,7 +41,8 @@ var DataCenterFactory = function(blueprint){
     const nodes = {};
     const links = {};
     let edgeList = {};
-    const brokenLinks = {};
+    this.edgeCount = {};
+    this.brokenLinks = {};
     let trees;
     const nodeIDs = new IDFactory({prefix:"N:","isGUID":blueprint.useGUIDs});
     const linkIDs = new IDFactory({prefix:"L:","isGUID":blueprint.useGUIDs});
@@ -180,20 +181,22 @@ var DataCenterFactory = function(blueprint){
     };
     function buildTrees() {
         edgeList = {};
+        Object.keys(dc.edgeCount).forEach(function(linkID) { dc.edgeCount[linkID] = 0; });
         for ( const nodeID in nodes ) {
             let services = nodes[nodeID].getServices();
             let svc = services[defaultSvcID];
             let traphs = svc.getTraphs();
             for ( const treeID in traphs ) {
                 const traph = traphs[treeID];
-                // var i so i is scoped outside loop
                 if ( nodeID !== treeID && traph[0].isConnected ) {
                     const linkID = traph[0].linkID;
                     edgeList[treeID] = edgeList[treeID] || [];
+                    dc.edgeCount[linkID] = dc.edgeCount[linkID] || 0;
                     const nID = traph[0].nodeID;
                     const newEdge = [nodeID,linkID,nID];
                     if ( !inEdgeList(edgeList[treeID],newEdge) ) {
                         edgeList[treeID].push(newEdge);
+                        dc.edgeCount[linkID]++;
                     }
                 }
             }
@@ -332,7 +335,7 @@ var DataCenterFactory = function(blueprint){
         let that = this;
         let broken = false;
         const id = params.id;
-        brokenLinks[id] = false;
+        dc.brokenLinks[id] = false;
         this.isBroken = function() { return broken; };
         this.display.on("click",toggleBroken);
         // No free port => bad wiring diagram
@@ -487,7 +490,7 @@ var DataCenterFactory = function(blueprint){
         this.disconnect = function() {
             if ( !broken ) { // Needed to end recursion with port.disconnect()
                 console.log("Disconnect link: " + id);
-                brokenLinks[id] = true; // To debug bad trie updates
+                dc.brokenLinks[id] = true; // To debug bad trie updates
                 broken = true;
                 ports.L.disconnect();
                 ports.R.disconnect();
@@ -499,7 +502,7 @@ var DataCenterFactory = function(blueprint){
             //broken = true;
             //if ( ports.L.isConnected() && ports.R.isConnected() ) broken = false;
             broken = false; // Needed until I implement port reconnect
-            brokenLinks[id] = false; // To debug bad trie updates
+            dc.brokenLinks[id] = false; // To debug bad trie updates
             that.show({"broken":broken});
             console.log("Reconnect link: " + id);
         };
