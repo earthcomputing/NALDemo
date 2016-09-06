@@ -118,24 +118,9 @@ var TreeMgrSvc = function(params) {
         portsTried[treeID] = portsTried[treeID] || [];
         BREAKPOINT(eval(breakpointTest), "findNewParent: tree " + treeID + " node " + svc.getNodeID());
         markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
-        // First look for a pruned port not on the broken branch
-        for ( let i = 1; i < traph.length; i++ ) {  // traph[0] is parent
-            if ( traph[i].isConnected && !traph[i].isChild && !traph[i].onBrokenBranch &&
-                 failover(traph[i]) ) return;
-        }
-        // If that fails, try a failover port on the broken branch
-        for ( let i = 1; i < traph.length; i++ ) {
-            if ( traph[i].isConnected && !traph[i].isChild && traph[i].onBrokenBranch &&
-                 failover(traph[i]) ) return;
-        }
-        // If that fails, find a child to failover to
-        for ( let i = 1; i < traph.length; i++ ) {
-            if ( traph[i].isConnected && traph[i].isChild && failover(traph[i]) ) return;
-        }
-        // If that fails, there's no failover branch from this node
-        if ( failoverRequester[treeID].length > 0 && failoverRequester[treeID][0] !== "leafward" ) {
-            failoverFailure({"treeID":treeID,"brokenBranch":brokenBranch});
-        }
+        const trialParent = nextSmallestHops(treeID,traph);
+        if ( trialParent ) failover(trialParent);
+        else if ( !isLeafwardNode(treeID) ) failoverFailure({"treeID":treeID,"brokenBranch":brokenBranch});
         else console.log("Network partition: Cell " + svc.getNodeID() + " found no path to root " + treeID);
         function failover(trialParent) {
             if ( trialParent.isConnected && portUntried(treeID,trialParent.portID) ) { 
@@ -293,13 +278,10 @@ var TreeMgrSvc = function(params) {
         traphToUpdate.hops = hops;
         traphToUpdate.branch = branch;
         traphToUpdate.onBrokenBranch = false;
-        //traphToUpdate.branch = adjustPath(traphToUpdate);
         delete portsTried[treeID]; // Only works if rediscover doesn't overlap failover
         // Forward message on all ports on the broken branch if message is from my parent
         if ( newParentPortID[treeID] === portID ||
              !newParentPortID[treeID] && traph[0].portID === portID ) {
-//            if ( newParentPortID[treeID] && newParentPortID[treeID] !== traph[0].portID )
-//                console.log("tree " + treeID + " node " + svc.getNodeID() + " newParentPortID: " + newParentPortID[treeID] + ", traph[0].portID: " + traph[0].portID);
             sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch});
             delete newParentPortID[treeID];
         }
@@ -320,8 +302,6 @@ var TreeMgrSvc = function(params) {
         traphToUpdate.isChild = true;
         traphToUpdate.onBrokenBranch = false;
         debugOutput("Rediscovered Handler: " + svc.getLabel() + "child " + portID + " " + value.envelope.stringify());
-        //if ( traph[0].onBrokenBranch ) informNewParent({"treeID":treeID,"traph":traph,"hops":hops-1,"branch":trimBranch(branch),"brokenBranch":brokenBranch});
-        //sendPathUpdate({"treeID":treeID,"traph":traph,"hops":hops,"branch":branch,"brokenBranch":brokenBranch});
     }
     function undiscoveredHandler(value) {
         const portID = value.portID;
@@ -335,10 +315,21 @@ var TreeMgrSvc = function(params) {
         return portsTried[treeID].indexOf(portID) < 0;
     }
     function sameBranch(params) {
-        //const traph = params.traphBranch.split(",");
-        //const test = params.test.split(",");
-        //return traph[0] === test[0];
-        return ( 0 === params.traphBranch.indexOf(params.test) );
+        if ( true ) {
+            // Uses full trie info
+            return ( 0 === params.traphBranch.indexOf(params.test) );
+        } else if ( true ) {
+            // Uses root port only for trie data
+            const traph = params.traphBranch.split(",");
+            const test = params.test.split(",");
+            return traph[0] === test[0];
+        } else {
+            // No trie info, just find a path to the root
+            return ( !isLeafwardNode(params.traph) );
+        }
+    }
+    function isLeafwardNode(treeID) {
+        return failoverRequester[treeID].length > 0 && failoverRequester[treeID][0] !== "leafward";
     }
     function markBrokenBranches(params) {
         const traph = params.traph;
@@ -353,6 +344,44 @@ var TreeMgrSvc = function(params) {
             if ( traph[t].portID === portID ) return traph[t];
         }
         throw "No entry for portID " + portID;
+    }
+    function nextTrialParent(treeID,traph) {
+        if ( true ) nextSmallestHops(treeID,traph);
+        else { // Original algorithm
+            // First look for a pruned port not on the broken branch
+            for ( let i = 1; i < traph.length; i++ ) {  // traph[0] is parent
+                if ( traph[i].isConnected && !traph[i].isChild && !traph[i].onBrokenBranch &&
+                     failover(traph[i]) ) return;
+            }
+            // If that fails, try a failover port on the broken branch
+            for ( let i = 1; i < traph.length; i++ ) {
+                if ( traph[i].isConnected && !traph[i].isChild && traph[i].onBrokenBranch &&
+                     failover(traph[i]) ) return;
+            }
+            // If that fails, find a child to failover to
+            for ( let i = 1; i < traph.length; i++ ) {
+                if ( traph[i].isConnected && traph[i].isChild && failover(traph[i]) ) return;
+            }
+        }
+    }   
+    function nextSmallestHops(treeID,traph) {
+        let min = 10000000;
+        let minElement;
+        Object.keys(traph).forEach(function(t) {
+            if ( traph[t].isConnected && traph[t].hops < min
+                 && !(portWasTried(treeID,traph[t].portID) > -1)  ) {
+                min = traph[t].hops;
+                minElement = t;
+            }
+        });
+        if ( minElement ) return traph[minElement];
+        else              return null;
+    }
+    function portWasTried(treeID,portID) {
+        return portsTried[treeID] && portsTried[treeID].indexOf(portID);
+    }
+    function isLeafwardNode(treeID) {
+        return failoverRequester[treeID].length === 1 && failoverRequester[treeID][0] === "leafward";
     }
     function appendToBranch(branch,element) { return branch + "," + element; }
     function trimBranch(branch) {

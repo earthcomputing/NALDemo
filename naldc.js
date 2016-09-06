@@ -520,8 +520,8 @@ var DataCenterFactory = function(blueprint){
         const ports = {};
         const services = {};
         this.display.on("click",function() {
-            alert("Killing a node has not been debugged.");
-            return;
+            //alert("Killing a node has not been debugged.");
+            //return;
             broken = !broken;
             that.show({"broken":broken});
             if ( broken ) that.crash();
