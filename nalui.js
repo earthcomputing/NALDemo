@@ -3,14 +3,15 @@ let showTree = "";
 window.onload = function() {
     const configForm = document.getElementById("configForm");
     const buildButton = document.getElementById("buildButton");
-    const radioButtons = []
+    const radioButtons = [];
     for ( const c in configurations ) {
         const e = document.createElement("input");
         radioButtons.push(e);
         e.type = "radio";
         e.name = "config";
         e.value = c;
-        e.onclick = function() { setConfig(this.value); };
+        e.onclick = function() {
+            setConfig(this.value); };
         configForm.appendChild(e);
         if ( c === "grid" ) {
             const n = document.createElement("input");
@@ -28,6 +29,16 @@ window.onload = function() {
             }
         }
         configForm.appendChild(document.createTextNode(configurations[c].name));
+        if ( c === "grid" ) {
+            const k = document.createElement("input");
+            k.type = "checkbox";
+            k.name = "kleinberg";
+            k.checked = false;
+            k.id = "addKleinberg";
+            k.onclick = function() { setConfig(k.checked); };
+            //configForm.appendChild(k);
+            //configForm.appendChild(document.createTextNode("Add Kleinberg links"));
+        }
         configForm.appendChild(document.createElement("br"));
     }
 };

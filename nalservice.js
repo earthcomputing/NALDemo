@@ -12,6 +12,7 @@ var ServiceFactory = function(params) {
     const nports = node.getNports();
     const label = id + " " + node.getID() + " ";
     this.getID = function() { return id; };
+    this.getNode = function() { return node; };
     this.getNodeID = function() { return node.getID(); };
     this.getPorts = function() { return node.getPorts(); };
     this.getNports = function() { return node.getNports(); };

@@ -99,6 +99,7 @@ var DataCenterFactory = function(blueprint){
                 }
                 i++;
             }
+            if ( blueprint.addKleinberg ) blueprint.links.concat(getKleinbergLinks());
         }
         for ( const wire in blueprint.links ) dc.addLink(blueprint.links[wire]); 
         console.log("-----> Data Center Wired");
@@ -112,6 +113,15 @@ var DataCenterFactory = function(blueprint){
             const x = offsetX + 100*(i - ncols*Math.trunc(i/ncols));
             const y = offsetY + 100*Math.trunc(i/ncols);
             return {"x":x,"y":y};
+        }
+        function getKleinbergLinks() {
+            const ncols = Math.min(blueprint.maxCols,Math.floor(Math.sqrt(nnodes)));
+            const nrows = nodeIDs.length/ncols;
+            const n1 =   ncols/4 +   nrows/4;
+            const n2 =   ncols/4 + 3*nrows/4;
+            const n3 = 3*ncols/4 +   nrows/4;
+            const n4 = 3*ncols/4 + 3*nrows/4;
+            return [[n1,n4],[n2,n3]];
         }
     }
     this.configuration = function() {
@@ -179,6 +189,31 @@ var DataCenterFactory = function(blueprint){
         for ( let link in links ) { links[link].show(changes); }
         for ( let node in nodes ) { nodes[node].show(changes); }
     };
+    this.treeStats = function() {
+        let numTrees;
+        let maxHops = 0;
+        let totalHops = 0;        
+        const nodeIDs = Object.keys(nodes);
+        const numNodes = nodeIDs.length;
+        nodeIDs.forEach(function(nodeID) {
+            if ( !nodes[nodeID].isBroken() ) {
+                let services = nodes[nodeID].getServices();
+                let svc = services[defaultSvcID];
+                let traphs = svc.getTraphs();
+                const treeIDs = Object.keys(traphs);
+                numTrees = treeIDs.length;
+                treeIDs.forEach(function(treeID) {
+                    if ( traphs[treeID][0].isConnected && nodeID !== treeID &&
+                         !nodes[treeID].isBroken() ) {
+                        const hops = traphs[treeID][0].hops;
+                        totalHops = totalHops + hops;
+                        if ( hops > maxHops ) maxHops = hops;
+                    }
+                });
+            }
+        });
+        return {"maxHops":maxHops, "averageHops":totalHops/(numNodes*numTrees)};
+    };            
     function buildTrees() {
         edgeList = {};
         Object.keys(dc.edgeCount).forEach(function(linkID) { dc.edgeCount[linkID] = 0; });
@@ -269,7 +304,7 @@ var DataCenterFactory = function(blueprint){
         const classList = params.classes;
         const eventData = params.eventData;
         const attrs = params.attrs;
-        const defaultClass = "default"
+        const defaultClass = "default";
         const classes = {};
         for ( let c in classList ) {
             if ( c === defaultClass ) classes[classList[c]] = true;
@@ -297,10 +332,13 @@ var DataCenterFactory = function(blueprint){
             const xy = getLabelPosition(this);
             //d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
             d3.select("#tooltip").html(that.getID()); // Fixed position relative to screen
+        }
+        this.clicked = function() {
             //console.log("mouseOver: " + isReset);
             if ( that.delay ) {
-                showTree = showTree || that.getID();
-                that.timer = setTimeout(function() { dc.showTree(showTree); }, that.delay);
+                showTree = that.getID();
+                that.timer = setTimeout(function() {
+                    dc.showTree(showTree); }, that.delay);
             }
         }
         function mouseLeave() {
@@ -337,7 +375,7 @@ var DataCenterFactory = function(blueprint){
         const id = params.id;
         dc.brokenLinks[id] = false;
         this.isBroken = function() { return broken; };
-        this.display.on("click",toggleBroken);
+        this.display.on("dblclick",toggleBroken);
         // No free port => bad wiring diagram
         const ports = {"L":params.Lport,"R":params.Rport};
         const transmitPromises = {};
@@ -519,15 +557,19 @@ var DataCenterFactory = function(blueprint){
         const label = id + " ";
         const ports = {};
         const services = {};
-        this.display.on("click",function() {
+        let clickTimer;
+        this.display.on("click",that.clicked);
+        this.display.on("dblclick",function() {
             //alert("Killing a node has not been debugged.");
             //return;
+            clearTimeout(that.timer);
             broken = !broken;
             that.show({"broken":broken});
             if ( broken ) that.crash();
-            else            console.log("Start node " + that.getID());//that.restart();
+            else          console.log("Start node " + that.getID());//that.restart();
         });        
         this.getID = function() { return id; };
+        this.isBroken = function() { return broken; };
         this.portDisconnected = function(portID) {
             services[defaultSvcID].portDisconnected(portID);
         };
@@ -545,6 +587,7 @@ var DataCenterFactory = function(blueprint){
             const emptyRecvResolvers = {};
             const facet = {"getID":this.getID,
                            "getPorts":this.getPorts,
+                           "isBroken":this.isBroken,
                            "getNports":this.getNports};
             for ( let i in ports ) {
                 let p = ports[i].getID();

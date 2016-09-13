@@ -1,7 +1,7 @@
 'use strict';
 let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "N:1"';
-let msgFilter = '"treeID":"d"';
+let breakpointTest = 'treeID === "o"';
+let msgFilter = '"treeID":"o"';
 let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly","LI","LJ";
 let config;
 let doTrace = false;
@@ -10,19 +10,20 @@ let blueprint;
 let linkDisplayParams;
 let nodeDisplayParams;
 function setConfig(value) {
+    let addKleinberg;
     if ( value ) {
         d3.select("svg").selectAll(["line","circle"]).remove();
         config = configuration(value);
-        if ( value === "grid" ) {
+        if ( value === "grid") {
             const size = Number(document.getElementById("gridSize").value);
-            if ( size > 3 ) config.nodes = new Array(size);
-            else alert("Number of cells must be > 3");            
+            //addKleinberg = document.getElementById("addKleinberg").checked;
+            config.nodes = new Array(size);
         }
         document.getElementById("buildButton").disabled=false;
     }
     blueprint = {
         "useGUIDs": false, "tooltips" : true, maxCols: 6,
-        "showMsgs": traceMsgs, 
+        "showMsgs": traceMsgs, "addKleinberg":addKleinberg,
         "nodes":config.nodes, "links":config.links,"nports":config.nports};       
     linkDisplayParams = {
         "shape":"line","before":".node",
@@ -36,7 +37,7 @@ function setConfig(value) {
                    "tree":"nodetree",
                    "root":"noderoot",
                    "broken":"nodebroken",},
-        "eventData":{"delay":250},
+        "eventData":{"delay":200},
         "attrs":{"r":10,"offsetX":120,"offsetY":20,
                  "xscale":config.xscale,"yscale":config.yscale,
                  "fill":"black"}};

@@ -11,6 +11,7 @@ var TreeMgrSvc = function(params) {
     this.type = "TreeMgr";
     const svc = this;
     const nodeID = svc.getNodeID();
+    const node = svc.getNode();
     const traphs = {};
     const portsTried = {};
     const newParentPortID = {};
@@ -19,6 +20,9 @@ var TreeMgrSvc = function(params) {
     this.getTraphs = function() { return traphs; };
     this.start = function() {
         svc.startSuper();
+        traphs[nodeID] = [{"branch":"","hops":0,"isChild":false,"isConnected":true,
+                          "linkID":"","nodeID":"","onBrokenBranch":false,"portID":"",
+                          "treeID":nodeID}];
         for ( let p in svc.getPorts() ) {
             const discoverMsg = new DiscoverMsg({"sendingNodeID":nodeID,"treeID":nodeID,"hops":0,"branch":p});
             const letter = {"port":p,"target":defaultSvcID,"envelope":discoverMsg};
@@ -82,7 +86,8 @@ var TreeMgrSvc = function(params) {
         traphs[treeID] = traphs[treeID] || [];
         traphs[treeID].push({"treeID":treeID, "nodeID":sendingNodeID, "isChild":true,
                              "linkID":ports[portID].getLink().getID(), "hops":hops,
-                             "portID":portID, "isConnected":true, "branch":branch});
+                             "portID":portID, "isConnected":true, "branch":branch,
+                             "onBrokenBranch":false});
         debugOutput("Discovered Handler: " + svc.getLabel() + " child " + portID + " " + value.envelope.stringify());
     }
     this.portDisconnected = function(portID) {
@@ -102,10 +107,10 @@ var TreeMgrSvc = function(params) {
                 if ( traph[p].isConnected ) connected = true;
             }
             if ( connected ) {
-                if ( parentLinkFailed && treeID !== nodeID ) {
+                if ( parentLinkFailed && !node.isBroken() && treeID !== nodeID ) {
                     failoverRequester[treeID] = ["leafward"];
                     findNewParent({"treeID":treeID, "traph":traph,
-                                   "brokenBranch":brokenBranch, "oldParent":traph[0]});
+                                   "brokenBranch":brokenBranch});
                 }
             } else console.log("Network partition: Cell " + nodeID + " has no connected ports");
         }
@@ -113,7 +118,6 @@ var TreeMgrSvc = function(params) {
     function findNewParent(params) {
         const treeID = params.treeID;
         const traph = params.traph;
-        const oldParent = params.oldParent;
         const brokenBranch = params.brokenBranch;
         portsTried[treeID] = portsTried[treeID] || [];
         BREAKPOINT(eval(breakpointTest), "findNewParent: tree " + treeID + " node " + svc.getNodeID());
@@ -320,16 +324,16 @@ var TreeMgrSvc = function(params) {
             return ( 0 === params.traphBranch.indexOf(params.test) );
         } else if ( true ) {
             // Uses root port only for trie data
-            const traph = params.traphBranch.split(",");
+            const branch = params.traphBranch.split(",");
             const test = params.test.split(",");
-            return traph[0] === test[0];
+            return branch[0] === test[0];
         } else {
             // No trie info, just find a path to the root
-            return ( !isLeafwardNode(params.traph) );
+            return ( !isLeafwardNode(test) );
         }
     }
-    function isLeafwardNode(treeID) {
-        return failoverRequester[treeID].length > 0 && failoverRequester[treeID][0] !== "leafward";
+    function isLeafwardNode(branch) {
+        return branch.length === 1;
     }
     function markBrokenBranches(params) {
         const traph = params.traph;
@@ -365,12 +369,12 @@ var TreeMgrSvc = function(params) {
         }
     }   
     function nextSmallestHops(treeID,traph) {
-        let min = 10000000;
+        let min; // No matter how big a number I pick, it won't be big enough!
         let minElement;
         Object.keys(traph).forEach(function(t) {
-            if ( traph[t].isConnected && traph[t].hops < min
+            if ( traph[t].isConnected && (!min || traph[t].hops <= min)
                  && !(portWasTried(treeID,traph[t].portID) > -1)  ) {
-                min = traph[t].hops;
+                min = min || traph[t].hops;
                 minElement = t;
             }
         });

@@ -30,7 +30,7 @@ var MsgFactory = function(typeVal) {
     this.stringify = function() {
         return JSON.stringify(envelope); };
 };
-// Text Message {text:text}
+// Text Message {text}
 this.TextMsg = function(txt) {
     MsgFactory.call(this,txt);
     const text = txt;
@@ -50,7 +50,7 @@ this.RecvBufferEmptyMsg = function() {
     TextMsg.call(this,"recvEmpty");
     const text = "TreeMgr Empty Recv Buffer";
 };
-// Discover Message {sendingNode:nodeID,treeID:rootNodeID,hops:hops,branch:branch}
+// Discover Message {sendingNodeID,treeID,hops,branch}
 this.DiscoverMsg = function(params) {
     MsgFactory.call(this,"discover");
     const nodeID = params.sendingNodeID;
@@ -67,7 +67,7 @@ this.DiscoverMsg = function(params) {
     this.getBranch = function() { return branch; };
     return Object.freeze(this);
 };
-// Discovered Message {treeID:rootNodeID,sendingNodeID:nodeID,hops:hops,branch:branch}
+// Discovered Message {treeID,sendingNodeID,hops,branch}
 this.DiscoveredMsg = function(params) {
     MsgFactory.call(this,"discovered");
     const treeID = params.treeID;
@@ -115,7 +115,7 @@ this.FailoverStatusMsg = function(params) {
     this.getBrokenBranch = function() { return brokenBranch; };
     return Object.freeze(this);
 };
-// Rediscover Message {sendingNode:nodeID,treeID:rootNodeID,brokenBranch:brokenBranch}
+// Rediscover Message {sendingNode,treeID,hops,brokenBranch}
 this.RediscoverMsg = function(params) {
     MsgFactory.call(this,"rediscover");
     const nodeID = params.sendingNodeID;
@@ -134,7 +134,7 @@ this.RediscoverMsg = function(params) {
     this.getBrokenBranch = function() { return brokenBranch; };
     return Object.freeze(this);
 };
-// Rediscovered Message {treeID:rootNodeID,sendingNodeID:nodeID,hops:hops,branch:branch,brokenBranch:brokenBranch}
+// Rediscovered Message {treeID,sendingNodeID,hops,branch,brokenBranch}
 this.RediscoveredMsg = function(params) {
     MsgFactory.call(this,"rediscovered");
     const treeID = params.treeID;
@@ -152,7 +152,7 @@ this.RediscoveredMsg = function(params) {
     this.getSendingNodeID = function() { return nodeID; };
     return Object.freeze(this);
 };
-// Undiscovered Message {treeID:rootNodeID}
+// Undiscovered Message {treeID}
 this.UndiscoveredMsg = function(params) {
     MsgFactory.call(this,"undiscovered");
     const treeID = params.treeID;
