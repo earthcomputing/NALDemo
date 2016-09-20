@@ -1,5 +1,6 @@
 'use strict';
 let showTree = "";
+let oldShowTree = "";
 window.onload = function() {
     const configForm = document.getElementById("configForm");
     const buildButton = document.getElementById("buildButton");
@@ -11,7 +12,10 @@ window.onload = function() {
         e.name = "config";
         e.value = c;
         e.onclick = function() {
-            setConfig(this.value); };
+            setConfig(this.value);
+            showTree = "";
+            oldShowTree = "";
+        };
         configForm.appendChild(e);
         if ( c === "grid" ) {
             const n = document.createElement("input");
@@ -51,5 +55,6 @@ function build() {
 }
 function resetView() {
     showTree = "";
+    oldShowTree = "";
     dataCenter.showTree();
 }

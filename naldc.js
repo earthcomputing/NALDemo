@@ -43,6 +43,7 @@ var DataCenterFactory = function(blueprint){
     let edgeList = {};
     this.edgeCount = {};
     this.brokenLinks = {};
+    this.treeErrors = {};
     let trees;
     const nodeIDs = new IDFactory({prefix:"N:","isGUID":blueprint.useGUIDs});
     const linkIDs = new IDFactory({prefix:"L:","isGUID":blueprint.useGUIDs});
@@ -104,6 +105,7 @@ var DataCenterFactory = function(blueprint){
         for ( const wire in blueprint.links ) dc.addLink(blueprint.links[wire]); 
         console.log("-----> Data Center Wired");
         setTimeout(buildTrees,0);
+        setTimeout(function() { dc.showTree(oldShowTree); },0);
         function getNodePosition(params) {
             const i = params.i;
             const nnodes = params.nnodes;
@@ -144,12 +146,13 @@ var DataCenterFactory = function(blueprint){
         if ( wire.name ) {
             n0 = nodes[wire.nodeIDs[0]];
             n1 = nodes[wire.nodeIDs[1]];
-            linkID = wire.name;
+            //linkID = wire.name;
         } else {
             n0 = nodes[idFromIndex(nodes,wire[0])];
             n1 = nodes[idFromIndex(nodes,wire[1])];
-            linkID = linkIDs.getID();
+            //linkID = linkIDs.getID();
         }
+        linkID = n0.getID() + "-" + n1.getID();
         const p0 = n0.getFreePort();
         const p1 = n1.getFreePort();
         let xy = n0.getDisplayAttrs();
@@ -216,6 +219,7 @@ var DataCenterFactory = function(blueprint){
     };            
     function buildTrees() {
         edgeList = {};
+        const treeCheck = {};
         Object.keys(dc.edgeCount).forEach(function(linkID) { dc.edgeCount[linkID] = 0; });
         for ( const nodeID in nodes ) {
             let services = nodes[nodeID].getServices();
@@ -223,7 +227,15 @@ var DataCenterFactory = function(blueprint){
             let traphs = svc.getTraphs();
             for ( const treeID in traphs ) {
                 const traph = traphs[treeID];
-                if ( nodeID !== treeID && traph[0].isConnected ) {
+                treeCheck[treeID] = treeCheck[treeID] || {};
+                treeCheck[treeID][nodeID] = {children:[]};
+                if ( treeID !== nodeID ) treeCheck[treeID][nodeID].parent = traph[0].nodeID;
+                for ( let t = 1; t < traph.length; t++ ) {
+                    if ( traph[t].isConnected && traph[t].isChild ) {
+                        treeCheck[treeID][nodeID].children.push(traph[t].nodeID);
+                    }
+                }
+                if ( traph[0].isConnected && nodeID !== treeID ) {
                     const linkID = traph[0].linkID;
                     edgeList[treeID] = edgeList[treeID] || [];
                     dc.edgeCount[linkID] = dc.edgeCount[linkID] || 0;
@@ -237,12 +249,29 @@ var DataCenterFactory = function(blueprint){
             }
         }
         dc.setTrees(edgeList);
+        verifyTrees();
         return edgeList;
         function inEdgeList(edges,newEdge) { // Edge not already in tree
             for ( const edge in edges ) {
                 if ( edges[edge][1] === newEdge[1] ) return true;
             }
             return false;
+        }
+        function verifyTrees() {
+            const error = {};
+            Object.keys(treeCheck).forEach(function(treeID) {
+                error[treeID] = [];
+                if ( !nodes[treeID].isBroken() ) {
+                    Object.keys(nodes).forEach(function(nodeID) {
+                        const parent = treeCheck[treeID][nodeID].parent;
+                        if ( !nodes[nodeID].isBroken() && parent ) {
+                            const isChild = treeCheck[treeID][parent].children.indexOf(nodeID) >= 0;
+                            if ( !isChild ) error[treeID].push(nodeID);
+                        }
+                    });
+                }
+                if ( error[treeID].length > 0 ) dc.treeErrors[treeID] = error[treeID];
+            });
         }
     }
     this.showTree = function(treeID) {
@@ -334,11 +363,14 @@ var DataCenterFactory = function(blueprint){
             d3.select("#tooltip").html(that.getID()); // Fixed position relative to screen
         }
         this.clicked = function() {
-            //console.log("mouseOver: " + isReset);
             if ( that.delay ) {
                 showTree = that.getID();
                 that.timer = setTimeout(function() {
-                    dc.showTree(showTree); }, that.delay);
+                    if ( that.timer ) {
+                        oldShowTree = showTree;
+                        dc.showTree(showTree);
+                    }
+                }, that.delay);
             }
         }
         function mouseLeave() {
@@ -358,7 +390,7 @@ var DataCenterFactory = function(blueprint){
                     if ( c !== defaultClass ) classes[classList[c]] = false;
                 }
             }
-            setTimeout(function() { that.display.classed(classes); }, 0);
+            setTimeout(function() { that.display.classed(classes); }, 100);
         };
         function showAttr(attrs) {
             for ( let a in attrs ) {
@@ -533,7 +565,8 @@ var DataCenterFactory = function(blueprint){
                 ports.L.disconnect();
                 ports.R.disconnect();
                 that.show({"broken":broken});
-                setTimeout(function() { dc.showTree(showTree); }, 0);            }
+                setTimeout(function() { dc.showTree(showTree); });
+            }
         };
         this.reconnect = function() {
             // Commented out until I implement port reconnect
@@ -563,10 +596,13 @@ var DataCenterFactory = function(blueprint){
             //alert("Killing a node has not been debugged.");
             //return;
             clearTimeout(that.timer);
+            that.timer = null;
             broken = !broken;
             that.show({"broken":broken});
             if ( broken ) that.crash();
             else          console.log("Start node " + that.getID());//that.restart();
+            setTimeout(function() {
+                dc.showTree(oldShowTree); }, 0);
         });        
         this.getID = function() { return id; };
         this.isBroken = function() { return broken; };

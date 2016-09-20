@@ -83,29 +83,32 @@ this.DiscoveredMsg = function(params) {
     this.getSendingNodeID = function() { return nodeID; };
     return Object.freeze(this);
 };
-// Failover Messasge {treeID:treeID,brokenBranch:branch}
-// Tell node it has a new child after a failure
+// brokenLinkID needed to handle overlapping failover requests
+// Failover Messasge {treeID,brokenLinkID,brokenBranch}
 this.FailoverMsg = function(params) {
     MsgFactory.call(this,"failover");
     const treeID = params.treeID;
+    const linkID = params.brokenLinkID;
     const branch = params.brokenBranch;
-    const letter = {"treeID":treeID,"brokenBranch":branch};
+    const letter = {"treeID":treeID,"brokenLinkID":linkID,"brokenBranch":branch};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };
     this.getBrokenBranch = function() { return branch; };
+    this.getBrokenLinkID = function() { return linkID; };
     return Object.freeze(this);
 };
-// FailoverStatus Message {treeID:treeID,status:status,branch:branch,brokenBranch:brokenBranch}
-// Tell failover requester I am its new parent
+// FailoverStatus Message {treeID,brokenLinkID,status,branch,brokenBranch}
 this.FailoverStatusMsg = function(params) {
     MsgFactory.call(this,"failoverStatus");
     const treeID = params.treeID;
+    const linkID = params.brokenLinkID;
     const status = params.status;
     const branch = params.branch;
     const hops = params.hops;
     const brokenBranch = params.brokenBranch;
-    const letter = {"treeID":treeID,"status":status,"branch":branch,"hops":hops,"brokenBranch":brokenBranch};
+    const brokenLinkID = params.brokenLinkID;
+    const letter = {"treeID":treeID,"brokenLinkID":linkID,"status":status,"branch":branch,"hops":hops,"brokenBranch":brokenBranch};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };
@@ -113,17 +116,20 @@ this.FailoverStatusMsg = function(params) {
     this.getBranch = function() { return branch; };
     this.getHops = function() { return hops; };
     this.getBrokenBranch = function() { return brokenBranch; };
+    this.getBrokenLinkID = function() { return brokenLinkID; };
     return Object.freeze(this);
 };
-// Rediscover Message {sendingNode,treeID,hops,brokenBranch}
+// Rediscover Message {treeID,brokenLinkID,sendingNode,hops,branch,brokenBranch}
 this.RediscoverMsg = function(params) {
     MsgFactory.call(this,"rediscover");
-    const nodeID = params.sendingNodeID;
     const treeID = params.treeID;
+    const linkID = params.linkID;
+    const nodeID = params.sendingNodeID;
     const hops = params.hops;
     const branch = clone(params.branch);
-    const brokenBranch = params.brokenBranch; // Only used for failover, undefined otherwise
-    const letter = {"sendingNode":nodeID,"treeID":treeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
+    const brokenBranch = params.brokenBranch;
+    const brokenLinkID = params.brokenLinkID;
+    const letter = {"treeID":treeID,"brokenLinkID":linkID,"sendingNode":nodeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
     // Discover msg always goes to TreeMgrSvc
     this.setLetter(letter);
     delete this.setLetter;
@@ -132,17 +138,19 @@ this.RediscoverMsg = function(params) {
     this.getHops = function() { return hops; };
     this.getBranch = function() { return branch; };
     this.getBrokenBranch = function() { return brokenBranch; };
+    this.getBrokenLinkID = function() { return brokenLinkID; };
     return Object.freeze(this);
 };
-// Rediscovered Message {treeID,sendingNodeID,hops,branch,brokenBranch}
+// Rediscovered Message {treeI,brokenLinkID,sendingNodeID,hops,branch,brokenBranch}
 this.RediscoveredMsg = function(params) {
     MsgFactory.call(this,"rediscovered");
     const treeID = params.treeID;
+    const linkID = params.linkID;
     const nodeID = params.sendingNodeID;
     const hops = params.hops;
     const branch = params.branch;
     const brokenBranch = params.brokenBranch;
-    const letter = {"treeID":treeID,"sendingNodeID":nodeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
+    const letter = {"treeID":treeID,"brokenLinkID":linkID,"sendingNodeID":nodeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };
@@ -152,11 +160,12 @@ this.RediscoveredMsg = function(params) {
     this.getSendingNodeID = function() { return nodeID; };
     return Object.freeze(this);
 };
-// Undiscovered Message {treeID}
+// Undiscovered Message {treeID,brokenLinkID}
 this.UndiscoveredMsg = function(params) {
     MsgFactory.call(this,"undiscovered");
     const treeID = params.treeID;
-    const letter = {"treeID":treeID};
+    const linkID = params.brokenLinkID;
+    const letter = {"treeID":treeID,"linkID":linkID};
     this.setLetter(letter);
     delete this.setLetter;
     this.getTreeID = function() { return treeID; };

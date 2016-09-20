@@ -6,7 +6,7 @@ function debugOutput(msg,condition) {
     // Display only messages that match the blueprint filter
     let filter;
     if ( msgFilter ) filter = msg.indexOf(msgFilter) >= 0;
-    else             filter = false;
+    else             filter = true;
     // Never display a message that doesn't satisfy the specified condition
     if ( !((condition === undefined) || condition) ) return;
     // Display all messages

@@ -1,7 +1,7 @@
 'use strict';
 let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "o"';
-let msgFilter = '"treeID":"o"';
+let breakpointTest = 'treeID === "y"';
+let msgFilter = '"treeID":"y"';
 let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly","LI","LJ";
 let config;
 let doTrace = false;
@@ -37,7 +37,7 @@ function setConfig(value) {
                    "tree":"nodetree",
                    "root":"noderoot",
                    "broken":"nodebroken",},
-        "eventData":{"delay":200},
+        "eventData":{"delay":300},
         "attrs":{"r":10,"offsetX":120,"offsetY":20,
                  "xscale":config.xscale,"yscale":config.yscale,
                  "fill":"black"}};
@@ -104,6 +104,7 @@ const debugMsgs = {
     56:"Send Rediscover: ",             //
     57:"Rediscover Handler: ",          //
     58:"Rediscovered Handler: ",        //
+    59:"Tree Update: ",                 //
 };
 function configuration(configName) {
     const config = configurations[configName];
@@ -139,7 +140,8 @@ function recvBufferMsgs() { return sequence(29,32); }
 function serviceFactoryMsgs() { return sequence(33,38); }
 function treeMgrMsgs() { return sequence(39,46); }
 function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(47,58); }
+function failoverMsgs() { return sequence(47,55); }
+function rediscoverMsgs() { return sequence(56,58); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);
