@@ -119,11 +119,7 @@ this.FailoverStatusMsg = function(params) {
     this.getBrokenLinkID = function() { return brokenLinkID; };
     return Object.freeze(this);
 };
-<<<<<<< HEAD
-// Rediscover Message {sendingNode:nodeID,treeID:rootNodeID,brokenBranch:brokenBranch}
-=======
 // Rediscover Message {treeID,brokenLinkID,sendingNode,hops,branch,brokenBranch}
->>>>>>> develop
 this.RediscoverMsg = function(params) {
     MsgFactory.call(this,"rediscover");
     const treeID = params.treeID;
@@ -131,14 +127,9 @@ this.RediscoverMsg = function(params) {
     const nodeID = params.sendingNodeID;
     const hops = params.hops;
     const branch = clone(params.branch);
-<<<<<<< HEAD
-    const brokenBranch = params.brokenBranch; // Only used for failover, undefined otherwise
-    const letter = {"sendingNode":nodeID,"treeID":treeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
-=======
     const brokenBranch = params.brokenBranch;
     const brokenLinkID = params.brokenLinkID;
     const letter = {"treeID":treeID,"brokenLinkID":linkID,"sendingNode":nodeID,"hops":hops,"branch":branch,"brokenBranch":brokenBranch};
->>>>>>> develop
     // Discover msg always goes to TreeMgrSvc
     this.setLetter(letter);
     delete this.setLetter;

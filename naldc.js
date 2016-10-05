@@ -41,13 +41,9 @@ var DataCenterFactory = function(blueprint){
     const nodes = {};
     const links = {};
     let edgeList = {};
-<<<<<<< HEAD
-    this.brokenLinks = {};
-=======
     this.edgeCount = {};
     this.brokenLinks = {};
     this.treeErrors = {};
->>>>>>> develop
     let trees;
     const nodeIDs = new IDFactory({prefix:"N:","isGUID":blueprint.useGUIDs});
     const linkIDs = new IDFactory({prefix:"L:","isGUID":blueprint.useGUIDs});

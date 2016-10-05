@@ -96,11 +96,7 @@ function brokenPaths() {
             const traph = getTraph(nodeID,treeID);
             Object.keys(traph).forEach(function(t) {
                 if ( traph[t].isConnected ) {
-<<<<<<< HEAD
-                    const found = verifyPath(traph[t].branch);
-=======
                     const found = brokenPath(traph[t].branch);
->>>>>>> develop
                     if ( found ) result.push(traph[t]);
                 }
             });
