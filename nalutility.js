@@ -6,7 +6,7 @@ function debugOutput(msg,condition) {
     // Display only messages that match the blueprint filter
     let filter;
     if ( msgFilter ) filter = msg.indexOf(msgFilter) >= 0;
-    else             filter = false;
+    else             filter = true;
     // Never display a message that doesn't satisfy the specified condition
     if ( !((condition === undefined) || condition) ) return;
     // Display all messages
@@ -66,7 +66,7 @@ function getTraph(node,tree) {
         return svc.getTraphs()[tree];
     } else return "No node named " + node;
 }
-function verifyPath(branch) {
+function brokenPath(branch) {
     let result;
     const links = branch.split(',');
     Object.keys(links).forEach(function(link) {
@@ -74,21 +74,21 @@ function verifyPath(branch) {
     });
     return result;
 }
-function verifyTreePaths(treeID) {
+function brokenTreePaths(treeID) {
     const result = [];
     const nodes = dataCenter.getNodes();
     Object.keys(nodes).forEach(function(nodeID) {
         const traph = getTraph(nodeID,treeID);
         Object.keys(traph).forEach(function(t) {
             if ( traph[t].isConnected ) {
-                const found = verifyPath(traph[t].branch);
+                const found = brokenPath(traph[t].branch);
                 if ( found ) result.push(traph[t]);
             }
         });
     });
     return result;
 }
-function verifyAllPaths() {
+function brokenPaths() {
     let result = [];
     const nodes = dataCenter.getNodes();
     Object.keys(nodes).forEach(function(nodeID) {
@@ -96,7 +96,11 @@ function verifyAllPaths() {
             const traph = getTraph(nodeID,treeID);
             Object.keys(traph).forEach(function(t) {
                 if ( traph[t].isConnected ) {
+<<<<<<< HEAD
                     const found = verifyPath(traph[t].branch);
+=======
+                    const found = brokenPath(traph[t].branch);
+>>>>>>> develop
                     if ( found ) result.push(traph[t]);
                 }
             });

@@ -41,7 +41,13 @@ var DataCenterFactory = function(blueprint){
     const nodes = {};
     const links = {};
     let edgeList = {};
+<<<<<<< HEAD
     this.brokenLinks = {};
+=======
+    this.edgeCount = {};
+    this.brokenLinks = {};
+    this.treeErrors = {};
+>>>>>>> develop
     let trees;
     const nodeIDs = new IDFactory({prefix:"N:","isGUID":blueprint.useGUIDs});
     const linkIDs = new IDFactory({prefix:"L:","isGUID":blueprint.useGUIDs});
@@ -98,10 +104,12 @@ var DataCenterFactory = function(blueprint){
                 }
                 i++;
             }
+            if ( blueprint.addKleinberg ) blueprint.links.concat(getKleinbergLinks());
         }
         for ( const wire in blueprint.links ) dc.addLink(blueprint.links[wire]); 
         console.log("-----> Data Center Wired");
         setTimeout(buildTrees,0);
+        setTimeout(function() { dc.showTree(oldShowTree); },0);
         function getNodePosition(params) {
             const i = params.i;
             const nnodes = params.nnodes;
@@ -111,6 +119,15 @@ var DataCenterFactory = function(blueprint){
             const x = offsetX + 100*(i - ncols*Math.trunc(i/ncols));
             const y = offsetY + 100*Math.trunc(i/ncols);
             return {"x":x,"y":y};
+        }
+        function getKleinbergLinks() {
+            const ncols = Math.min(blueprint.maxCols,Math.floor(Math.sqrt(nnodes)));
+            const nrows = nodeIDs.length/ncols;
+            const n1 =   ncols/4 +   nrows/4;
+            const n2 =   ncols/4 + 3*nrows/4;
+            const n3 = 3*ncols/4 +   nrows/4;
+            const n4 = 3*ncols/4 + 3*nrows/4;
+            return [[n1,n4],[n2,n3]];
         }
     }
     this.configuration = function() {
@@ -133,12 +150,13 @@ var DataCenterFactory = function(blueprint){
         if ( wire.name ) {
             n0 = nodes[wire.nodeIDs[0]];
             n1 = nodes[wire.nodeIDs[1]];
-            linkID = wire.name;
+            //linkID = wire.name;
         } else {
             n0 = nodes[idFromIndex(nodes,wire[0])];
             n1 = nodes[idFromIndex(nodes,wire[1])];
-            linkID = linkIDs.getID();
+            //linkID = linkIDs.getID();
         }
+        linkID = n0.getID() + "-" + n1.getID();
         const p0 = n0.getFreePort();
         const p1 = n1.getFreePort();
         let xy = n0.getDisplayAttrs();
@@ -178,33 +196,86 @@ var DataCenterFactory = function(blueprint){
         for ( let link in links ) { links[link].show(changes); }
         for ( let node in nodes ) { nodes[node].show(changes); }
     };
+    this.treeStats = function() {
+        let numTrees;
+        let maxHops = 0;
+        let totalHops = 0;        
+        const nodeIDs = Object.keys(nodes);
+        const numNodes = nodeIDs.length;
+        nodeIDs.forEach(function(nodeID) {
+            if ( !nodes[nodeID].isBroken() ) {
+                let services = nodes[nodeID].getServices();
+                let svc = services[defaultSvcID];
+                let traphs = svc.getTraphs();
+                const treeIDs = Object.keys(traphs);
+                numTrees = treeIDs.length;
+                treeIDs.forEach(function(treeID) {
+                    if ( traphs[treeID][0].isConnected && nodeID !== treeID &&
+                         !nodes[treeID].isBroken() ) {
+                        const hops = traphs[treeID][0].hops;
+                        totalHops = totalHops + hops;
+                        if ( hops > maxHops ) maxHops = hops;
+                    }
+                });
+            }
+        });
+        return {"maxHops":maxHops, "averageHops":totalHops/(numNodes*numTrees)};
+    };            
     function buildTrees() {
         edgeList = {};
+        const treeCheck = {};
+        Object.keys(dc.edgeCount).forEach(function(linkID) { dc.edgeCount[linkID] = 0; });
         for ( const nodeID in nodes ) {
             let services = nodes[nodeID].getServices();
             let svc = services[defaultSvcID];
             let traphs = svc.getTraphs();
             for ( const treeID in traphs ) {
                 const traph = traphs[treeID];
-                // var i so i is scoped outside loop
-                if ( nodeID !== treeID && traph[0].isConnected ) {
+                treeCheck[treeID] = treeCheck[treeID] || {};
+                treeCheck[treeID][nodeID] = {children:[]};
+                if ( treeID !== nodeID ) treeCheck[treeID][nodeID].parent = traph[0].nodeID;
+                for ( let t = 1; t < traph.length; t++ ) {
+                    if ( traph[t].isConnected && traph[t].isChild ) {
+                        treeCheck[treeID][nodeID].children.push(traph[t].nodeID);
+                    }
+                }
+                if ( traph[0].isConnected && nodeID !== treeID ) {
                     const linkID = traph[0].linkID;
                     edgeList[treeID] = edgeList[treeID] || [];
+                    dc.edgeCount[linkID] = dc.edgeCount[linkID] || 0;
                     const nID = traph[0].nodeID;
                     const newEdge = [nodeID,linkID,nID];
                     if ( !inEdgeList(edgeList[treeID],newEdge) ) {
                         edgeList[treeID].push(newEdge);
+                        dc.edgeCount[linkID]++;
                     }
                 }
             }
         }
         dc.setTrees(edgeList);
+        verifyTrees();
         return edgeList;
         function inEdgeList(edges,newEdge) { // Edge not already in tree
             for ( const edge in edges ) {
                 if ( edges[edge][1] === newEdge[1] ) return true;
             }
             return false;
+        }
+        function verifyTrees() {
+            const error = {};
+            Object.keys(treeCheck).forEach(function(treeID) {
+                error[treeID] = [];
+                if ( !nodes[treeID].isBroken() ) {
+                    Object.keys(nodes).forEach(function(nodeID) {
+                        const parent = treeCheck[treeID][nodeID].parent;
+                        if ( !nodes[nodeID].isBroken() && parent ) {
+                            const isChild = treeCheck[treeID][parent].children.indexOf(nodeID) >= 0;
+                            if ( !isChild ) error[treeID].push(nodeID);
+                        }
+                    });
+                }
+                if ( error[treeID].length > 0 ) dc.treeErrors[treeID] = error[treeID];
+            });
         }
     }
     this.showTree = function(treeID) {
@@ -266,7 +337,7 @@ var DataCenterFactory = function(blueprint){
         const classList = params.classes;
         const eventData = params.eventData;
         const attrs = params.attrs;
-        const defaultClass = "default"
+        const defaultClass = "default";
         const classes = {};
         for ( let c in classList ) {
             if ( c === defaultClass ) classes[classList[c]] = true;
@@ -294,10 +365,16 @@ var DataCenterFactory = function(blueprint){
             const xy = getLabelPosition(this);
             //d3.select("#tooltip").style("left",xy[0]+"px").style("top",xy[1]+"px").html(that.getID());
             d3.select("#tooltip").html(that.getID()); // Fixed position relative to screen
-            //console.log("mouseOver: " + isReset);
+        }
+        this.clicked = function() {
             if ( that.delay ) {
-                showTree = showTree || that.getID();
-                that.timer = setTimeout(function() { dc.showTree(showTree); }, that.delay);
+                showTree = that.getID();
+                that.timer = setTimeout(function() {
+                    if ( that.timer ) {
+                        oldShowTree = showTree;
+                        dc.showTree(showTree);
+                    }
+                }, that.delay);
             }
         }
         function mouseLeave() {
@@ -317,7 +394,7 @@ var DataCenterFactory = function(blueprint){
                     if ( c !== defaultClass ) classes[classList[c]] = false;
                 }
             }
-            setTimeout(function() { that.display.classed(classes); }, 0);
+            setTimeout(function() { that.display.classed(classes); }, 100);
         };
         function showAttr(attrs) {
             for ( let a in attrs ) {
@@ -334,7 +411,7 @@ var DataCenterFactory = function(blueprint){
         const id = params.id;
         dc.brokenLinks[id] = false;
         this.isBroken = function() { return broken; };
-        this.display.on("click",toggleBroken);
+        this.display.on("dblclick",toggleBroken);
         // No free port => bad wiring diagram
         const ports = {"L":params.Lport,"R":params.Rport};
         const transmitPromises = {};
@@ -492,7 +569,8 @@ var DataCenterFactory = function(blueprint){
                 ports.L.disconnect();
                 ports.R.disconnect();
                 that.show({"broken":broken});
-                setTimeout(function() { dc.showTree(showTree); }, 0);            }
+                setTimeout(function() { dc.showTree(showTree); });
+            }
         };
         this.reconnect = function() {
             // Commented out until I implement port reconnect
@@ -516,15 +594,22 @@ var DataCenterFactory = function(blueprint){
         const label = id + " ";
         const ports = {};
         const services = {};
-        this.display.on("click",function() {
-            alert("Killing a node has not been debugged.");
-            return;
+        let clickTimer;
+        this.display.on("click",that.clicked);
+        this.display.on("dblclick",function() {
+            //alert("Killing a node has not been debugged.");
+            //return;
+            clearTimeout(that.timer);
+            that.timer = null;
             broken = !broken;
             that.show({"broken":broken});
             if ( broken ) that.crash();
-            else            console.log("Start node " + that.getID());//that.restart();
+            else          console.log("Start node " + that.getID());//that.restart();
+            setTimeout(function() {
+                dc.showTree(oldShowTree); }, 0);
         });        
         this.getID = function() { return id; };
+        this.isBroken = function() { return broken; };
         this.portDisconnected = function(portID) {
             services[defaultSvcID].portDisconnected(portID);
         };
@@ -542,6 +627,7 @@ var DataCenterFactory = function(blueprint){
             const emptyRecvResolvers = {};
             const facet = {"getID":this.getID,
                            "getPorts":this.getPorts,
+                           "isBroken":this.isBroken,
                            "getNports":this.getNports};
             for ( let i in ports ) {
                 let p = ports[i].getID();
