@@ -1,7 +1,7 @@
 'use strict';
-let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "y"';
-let msgFilter = '"treeID":"y"';
+let traceMsgs = failoverMsgs();//.concat(rediscoverMsgs());
+let breakpointTest = 'treeID === "u"';
+let msgFilter = '"treeID":"u"';
 let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly","LI","LJ";
 let config;
 let doTrace = false;
@@ -95,16 +95,17 @@ const debugMsgs = {
     47:"Send Branch Info: ",            // Failover
     48:"Forward Rediscover: ",          // 
     49:"No failover:",                  //
-    50:"Failover: ",                    //
-    51:"Failover Handler: ",            //
-    52:"Failover success: ",            //
-    53:"Failover Status Handler: ",     //
-    54:"Inform new parent: ",           //
-    55:"Inform old parent: ",           //
-    56:"Send Rediscover: ",             //
-    57:"Rediscover Handler: ",          //
-    58:"Rediscovered Handler: ",        //
-    59:"Tree Update: ",                 //
+    50:"Reject symmetric failover:",    //
+    51:"Failover: ",                    //
+    52:"Failover Handler: ",            //
+    53:"Failover success: ",            //
+    54:"Failover Status Handler: ",     //
+    55:"Inform new parent: ",           //
+    56:"Inform old parent: ",           //
+    57:"Send Rediscover: ",             //
+    58:"Rediscover Handler: ",          //
+    59:"Rediscovered Handler: ",        //
+    60:"Tree Update: ",                 //
 };
 function configuration(configName) {
     const config = configurations[configName];
@@ -140,8 +141,8 @@ function recvBufferMsgs() { return sequence(29,32); }
 function serviceFactoryMsgs() { return sequence(33,38); }
 function treeMgrMsgs() { return sequence(39,46); }
 function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(47,55); }
-function rediscoverMsgs() { return sequence(56,58); }
+function failoverMsgs() { return sequence(47,56); }
+function rediscoverMsgs() { return sequence(57,59); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);
