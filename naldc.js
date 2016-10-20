@@ -274,6 +274,37 @@ var DataCenterFactory = function(blueprint){
             });
         }
     }
+    this.verifyTrees = function() {
+        let type;
+        const nodes = dataCenter.getNodes();
+        const error = {};
+        const maxSteps = Object.keys(nodes).length;
+        Object.keys(nodes).forEach(function(treeID) {
+            if ( !nodes[treeID].isBroken() ) {
+                Object.keys(nodes).forEach(function(nodeID) {
+                    if ( nodeID !== treeID && !nodes[nodeID].isBroken() ) {
+                        let steps = 0; // Needed in case of a cycle
+                        let next = getTraph(nodeID,treeID)[0];
+                        let found = false;
+                        while ( !found && steps < maxSteps ) {
+                            if ( next.nodeID !== "" && nodes[next.nodeID].isBroken() ) found = true;
+                            if ( !next.isConnected ) break; 
+                            if ( next.nodeID === "" ) found = true;
+                            else next = getTraph(next.nodeID,treeID)[0];
+                            steps++;
+                        }
+                        if ( !found ) {
+                            if ( steps === maxSteps ) type = "cycle";
+                            else                      type = "connection";
+                            error[treeID] = error[treeID] || [];
+                            if ( !error[treeID].find(x=>x.nodeID === next.nodeID) ) error[treeID].push({"nodeID":next.nodeID,"type":type});
+                        }
+                    }
+                });
+            }
+        });
+        return error;
+    }
     this.showTree = function(treeID) {
         this.showConfiguration({"tree":false,"root":false});
         if ( !treeID ) return;

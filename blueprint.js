@@ -1,7 +1,7 @@
 'use strict';
-let traceMsgs = failoverMsgs();//.concat(rediscoverMsgs());
-let breakpointTest = 'treeID === "u"';
-let msgFilter = '"treeID":"u"';
+let traceMsgs = failoverMsgs();
+let breakpointTest = 'treeID === "o"';
+let msgFilter = '"treeID":"o"';
 let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly","LI","LJ";
 let config;
 let doTrace = false;
@@ -93,20 +93,33 @@ const debugMsgs = {
     45:"Forward Discover: ",            //
     46:"Recv Empty Delivered: ",        //
     47:"Send Branch Info: ",            // Failover
-    48:"Forward Rediscover: ",          // 
-    49:"No failover:",                  //
-    50:"Reject symmetric failover:",    //
-    51:"Failover: ",                    //
-    52:"Failover Handler: ",            //
-    53:"Failover success: ",            //
+    48:"Reject symmetric failover:",    //
+    49:"Failover: ",                    //
+    50:"Failover Handler: ",            //
+    51:"Failover SUCCESS: ",            //
+    52:"Failover FAILURE: ",            //
+    53:"Failover CLEANUP: ",            //
     54:"Failover Status Handler: ",     //
     55:"Inform new parent: ",           //
     56:"Inform old parent: ",           //
     57:"Send Rediscover: ",             //
     58:"Rediscover Handler: ",          //
     59:"Rediscovered Handler: ",        //
-    60:"Tree Update: ",                 //
+    60:"Forward Rediscover: ",          // 
+    61:"Tree Update: ",                 //
 };
+function dataCenterMsgs() { return [1]; }
+function linkMsgs() { return sequence(2,11); }
+function nodeMsgs() { return [12]; }
+function portMsgs() { return sequence(13,20); }
+function bufferFactorMsgs() { return [21]; }
+function sendBufferMsgs() { return sequence(22,28); }
+function recvBufferMsgs() { return sequence(29,32); }
+function serviceFactoryMsgs() { return sequence(33,38); }
+function treeMgrMsgs() { return sequence(39,46); }
+function buildTreesMsgs() { return sequence(); }
+function failoverMsgs() { return sequence(47,56); }
+function rediscoverMsgs() { return sequence(57,60); }
 function configuration(configName) {
     const config = configurations[configName];
     if ( !config ) console.log("No configuration named " + configName);
@@ -123,7 +136,11 @@ function trace(msgs) {
         return traceOn();
     } else return traceOff();
 }
-function debuggingOn() { debugging = true; return "Debugging on"; }
+function debuggingOn() {
+    traceOn();
+    debugging = true;
+    return "Trace and debugging on";
+}
 function debuggingOff() { debugging = false; return "Debugging off"; }
 function BREAKPOINT(condition,msg) {
     if ( debugging && condition ) {
@@ -131,18 +148,6 @@ function BREAKPOINT(condition,msg) {
         debugger;
     }
 }
-function dataCenterMsgs() { return [1]; }
-function linkMsgs() { return sequence(2,11); }
-function nodeMsgs() { return [12]; }
-function portMsgs() { return sequence(13,20); }
-function bufferFactorMsgs() { return [21]; }
-function sendBufferMsgs() { return sequence(22,28); }
-function recvBufferMsgs() { return sequence(29,32); }
-function serviceFactoryMsgs() { return sequence(33,38); }
-function treeMgrMsgs() { return sequence(39,46); }
-function buildTreesMsgs() { return sequence(); }
-function failoverMsgs() { return sequence(47,56); }
-function rediscoverMsgs() { return sequence(57,59); }
 function sequence(start,end) {
     const s = [];
     for ( let i = start; i <= end; i++ ) s.push(i);
