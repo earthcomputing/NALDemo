@@ -100,6 +100,13 @@ var DataCenterFactory = function(blueprint){
                 }
                 i++;
             }
+            try {
+                let l = blueprint.links[10][1];
+                blueprint.links[10][1] = l + 1;
+                blueprint.links.splice(30,1);
+                l = blueprint.links[75][1];
+                blueprint.links[75][1] = l - 1;
+            } catch (e) {}
             if ( blueprint.addKleinberg ) blueprint.links.concat(getKleinbergLinks());
         }
         for ( const wire in blueprint.links ) dc.addLink(blueprint.links[wire]); 

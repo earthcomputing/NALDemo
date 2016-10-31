@@ -7,7 +7,7 @@
 const configurations = {
     "grid" : {
         "name":"Grid",
-        "nports":4,
+        "nports":5,
         "xscale":0.7,"yscale":0.7},
     "baranDistributedGrid": {
         "name":"Baran Distributed Grid",
