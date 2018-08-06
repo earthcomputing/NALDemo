@@ -1,6 +1,10 @@
+// Experiment naming convention explained in Section 10 of
+//  ~/Dropbox (Earth Computing)/Earth Computing Team Folder/Architecture/Tree Building and Healing/Tree Building and Healing AHK.pdf
 'use strict';
+// Start of code for experiment
+if ( !currentExperiment ) currentExperiment = '1a2a3a4a5a'; // Baseline options
 var TreeMgrSvc = function(params) {
-    const MAXTRIES = 2;
+    const MAXTRIES = 0;  // No retries because not dealing with overlapping failures
     const FAILOVERSUCCESS = "SUCCESS";
     const FAILOVERFAILURE = "FAILURE";
     const FAILOVERCLEANUP = "CLEANUP";
@@ -18,7 +22,9 @@ var TreeMgrSvc = function(params) {
     const node = svc.getNode();
     const traphs = {};
     const portsTried = {};
+    const seenRootPorts = {};
     const brokenBranches = []; // Need to reset when a link reconnects
+    let brokenLinkIDs = []; // For fail to RW; a cheat unless nodes have unique IDs
     const newParentPortID = {};
     const failoverRequester = {}; // Make a function of broken branch for overlapping failovers
     let symmetricFailover = {};
@@ -49,15 +55,21 @@ var TreeMgrSvc = function(params) {
         const ports = svc.getPorts();
         traphs[treeID] = initArray(traphs[treeID]);
         const traph = traphs[treeID];
-        let isParent = false;
+        const firstHop = getFirstStep(branch);
         if ( !traph[0] ) {
-            isParent = true;
             const discoveredMsg = new DiscoveredMsg({"treeID":treeID,"sendingNodeID":nodeID,
                                                      "hops":hops,"branch":branch});
             const reply = {"port":portID,"target":defaultSvcID,"envelope":discoveredMsg};
             debugOutput("Discovered: " + svc.getLabel() + portID + " " + discoveredMsg.stringify());
             svc.send(reply);
-            forward(ports); 
+            forward(ports);
+            seenRootPorts[treeID] = initArray(seenRootPorts[treeID]);
+            seenRootPorts[treeID].push(firstHop);
+        } else if ( isExperiment("1b") ) { // EXP - Slow quenching
+            if ( seenRootPorts[treeID].indexOf(firstHop) < 0 ) {
+                seenRootPorts[treeID].push(firstHop);
+                forward(ports);
+            }
         }
         const update = ({"treeID":treeID, "nodeID":sendingNodeID, "isChild":false,
                          "linkID":ports[portID].getLink().getID(), "onBrokenBranch":false,
@@ -71,8 +83,9 @@ var TreeMgrSvc = function(params) {
                 if ( pID !== portID ) {
                     const link = ports[pID].getLink();
                     if ( !link || !link.isBroken() ) {
-                        let trieData = pID;
-                        if ( link ) trieData = link.getID();
+                        //let trieData = pID;
+                        //if ( link ) trieData = link.getID();
+                        const trieData = iffun([[link,()=> {return link.getID();}]]);
                         const discoverMsg = new DiscoverMsg({"sendingNodeID":svc.getNodeID(),"treeID":treeID,"hops":hops,"branch":appendToBranch(branch,trieData)});
                         const letter = {"port":pID,"target":defaultSvcID,"envelope":discoverMsg};
                         debugOutput("Forward Discover: " + svc.getLabel() + pID + " " + letter.envelope.stringify());
@@ -96,49 +109,99 @@ var TreeMgrSvc = function(params) {
                              "onBrokenBranch":false});
         debugOutput("Discovered Handler: " + svc.getLabel() + " child " + portID + " " + value.envelope.stringify());
     }
-    this.portDisconnected = function(portID) {
-        for ( const treeID in traphs ) {
-            const traph = traphs[treeID];
-            const parentLinkFailed = (traph[0].portID === portID);
-            let connected = false;
-            let brokenBranch;
-            let brokenLinkID;
-            //BREAKPOINT(eval(breakpointTest),"portDisconnected: tree " + treeID + " node " + svc.getNodeID());
-            for ( const p in traph ) { 
-                if ( traph[p].portID === portID ) {
-                    traph[p].isConnected = false;
-                    if ( parentLinkFailed ) {
-                        brokenBranch = adjustPath(traph[p]);
-                        brokenLinkID = traph[0].linkID;
+    if ( isExperiment("5a") ) { // EXP - failover to root
+        this.portDisconnected = function(portID,brokenNodeIDs) {
+            for ( const treeID in traphs ) {
+                if ( brokenNodeIDs && brokenNodeIDs.indexOf(treeID) > -1 ) continue;
+                const traph = traphs[treeID];
+                const parentLinkFailed = (traph[0].portID === portID);
+                let connected = false;
+                let brokenBranch;
+                let brokenLinkID;
+                BREAKPOINT(eval(breakpointTest),"portDisconnected: tree " + treeID + " node " + svc.getNodeID());
+                if ( parentLinkFailed ) {
+                    brokenBranch = adjustPath(traph[0]);
+                    brokenLinkID = traph[0].linkID;
+                }
+                for ( const p in traph ) { 
+                    if ( traph[p].portID === portID ) {
+                        traph[p].isConnected = false;
+                        if ( parentLinkFailed ) {
+                            failoverRequester[treeID] = initObject(failoverRequester[treeID]);
+                            failoverRequester[treeID][brokenLinkID] = initArray(failoverRequester[treeID][brokenLinkID]);
+                            failoverRequester[treeID][brokenLinkID].push(portID);
+                        }
+                        else traph[p].isChild = false;
                     }
-                    else                    traph[p].isChild = false;
+                    if ( traph[p].isConnected ) connected = true;
                 }
-                if ( traph[p].isConnected ) connected = true;
+                if ( connected ) {
+                    if ( parentLinkFailed && !node.isBroken() && treeID !== nodeID ) {
+                        findNewParent({"treeID":treeID, "traph":traph,"brokenLinkID":brokenLinkID, "brokenBranch":brokenBranch,"treeIDs":[treeID]});
+                    }
+                } else console.log("Network partition: Cell " + nodeID + " has no connected ports");
             }
-            if ( connected ) {
-                if ( parentLinkFailed && !node.isBroken() && treeID !== nodeID ) {
-                    findNewParent({"treeID":treeID, "traph":traph,"brokenLinkID":brokenLinkID, "brokenBranch":brokenBranch});
-                }
-            } else console.log("Network partition: Cell " + nodeID + " has no connected ports");
         }
+    } else if ( isExperiment("5b") ) { // EXP - failover to RW
+        this.portDisconnected = function(portID,brokenNodeIDs) {
+            const treeID = getTraphByPortID(Object.values(traphs)[1],portID).nodeID;
+            BREAKPOINT(eval(breakpointTest),"portDisconnected: tree " + treeID + " node " + svc.getNodeID());
+            const traph = traphs[treeID];
+            if ( traph[0].portID === portID ) {
+                const brokenLinkID = traph[0].linkID;
+                if ( brokenLinkIDs.indexOf(brokenLinkID) < 0 ) brokenLinkIDs.push(brokenLinkID);
+                const firstStep = getFirstStep(traph[0].branch);
+                if ( brokenLinkIDs.indexOf(firstStep) < 0 ) brokenLinkIDs.push(firstStep);
+            }
+            const treeIDs = [];
+            Object.values(traphs).forEach(function(traph) {
+                if ( traph[0].portID === portID ) treeIDs.push(traph[0].treeID);
+                const traphToUpdate = getTraphByPortID(traph,portID);
+                traphToUpdate.isChild = false;
+                traphToUpdate.isConnected = false;
+            });
+            const brokenBranch = traph[0].branch;
+            const brokenLinkID = traph[0].linkID;
+            if ( !node.isBroken() ) findNewParent({"treeID":treeID,"traph":traph,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
+        }
+    } else {
+        throw "Experiment " + currentExperiment + " not implemented."
     }
     function findNewParent(params) {
         const treeID = params.treeID;
         const traph = params.traph;
         const brokenBranch = params.brokenBranch;
         const brokenLinkID = params.brokenLinkID;
+        const brokenLinkIDs = params.brokenLinkIDs; // Needed for experiment 5b
+        const treeIDs = params.treeIDs;             // Needed for experiment 5b
         portsTried[treeID] = initArray(portsTried[treeID]);
         if ( portsTried[treeID].length === 0 ) portsTried[treeID].push(0); // First element is count of attempts
         BREAKPOINT(eval(breakpointTest), "findNewParent: tree " + treeID + " node " + svc.getNodeID());
         markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
         const trialParent = nextTrialParent(treeID,traph);
-        if ( trialParent ) failover(trialParent);
+        if ( !trialParent.onBrokenBranch ) {
+            failoverSuccess({"treeID":treeID,"traph":traph,"branch":traph[0].branch,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
+                const oldParentPortID = traph[0].portID;
+                treeIDs.forEach(function(t) {
+                    const traph = traphs[t];
+                    const home = iffun([[!traph[0].portID,()=> {return traph.shift();}]]);
+                    //if ( !traph[0].portID ) home = traph.shift();
+                    sendToFrontByPortID(traph,trialParent.portID);
+                    if ( !isExperiment("2c") ) sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch,"brokenBranches":brokenBranches,"brokenLinkIDs":brokenLinkIDs});
+                    traph[0].isChild = false;
+                    if ( home ) traphs[t].unshift(home);
+                });
+            informNewParent({"treeIDs":treeIDs,"traph":traph,"hops":trialParent.hops,"branch":trialParent.branch,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
+            return;
+        }
+        // Reject if walk to RW path goes through root; fails if only paths are through root
+        const is5b = isExperiment("5b");
+        if ( trialParent && !is5b || trialParent && (is5b && treeIDs.indexOf(trialParent.nodeID) < 0) ) failover(trialParent);
         else {
-            failoverFailure({"treeID":treeID,"traph":traph,"branch":traph[0].branch,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch});
-            delete portsTried[treeID];
+            failoverFailure({"treeID":treeID,"traph":traph,"branch":traph[0].branch,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
         }
         function failover(trialParent) {
-            const failoverMsg = new FailoverMsg({"treeID":treeID,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch});
+            const failoverMsg = new FailoverMsg({"treeID":treeID,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
             debugOutput("Failover: " + svc.getLabel() + trialParent.nodeID + " " + failoverMsg.stringify());
             svc.send({"port":trialParent.portID,"target":defaultSvcID,"envelope":failoverMsg});
             portsTried[treeID].push(trialParent.portID);
@@ -150,9 +213,12 @@ var TreeMgrSvc = function(params) {
         const treeID = value.envelope.getTreeID();
         const brokenBranch = value.envelope.getBrokenBranch();
         const brokenLinkID = value.envelope.getBrokenLinkID();
+        const brokenLinkIDs = value.envelope.getBrokenLinkIDs(); // Needed for experiment 5b
+        const treeIDs = value.envelope.getTreeIDs();             // Needed for experiment 5b
+        const myID = svc.getNodeID();
         const traph = traphs[treeID];
-        const failoverParams = {"treeID":treeID,"traph":traph,"branch":traph[0].branch,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch};
-        const newParentParams = {"treeID":treeID, "traph":traph,"brokenLinkID":brokenLinkID, "brokenBranch":brokenBranch};
+        const failoverParams = {"treeID":treeID,"traph":traph,"branch":traph[0].branch,"brokenLinkID":brokenLinkID,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs};
+        const newParentParams = {"treeID":treeID, "traph":traph,"brokenLinkID":brokenLinkID, "brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs};
         BREAKPOINT(eval(breakpointTest),"failoverHandler: tree " + treeID + " node " + svc.getNodeID());
         debugOutput("Failover Handler: " + svc.getLabel() + "old parent " + traph[0].nodeID + " " + value.envelope.stringify());
         markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
@@ -174,9 +240,27 @@ var TreeMgrSvc = function(params) {
             failoverFailure(failoverParams);
             return;
         }
-        if ( traph[0].portID !== portID && (treeID === svc.getNodeID() || (!traph[0].onBrokenBranch && traph[0].isConnected)) ) {
-            let branch = traph[0].branch;
-            if ( treeID === svc.getNodeID() ) branch = rootPath(portID);
+        //let test;
+        //if ( isExperiment("2c") ) test = treeID === myID;  // EXP - Walk all the way to the root
+        //else if ( isExperiment("5b") ) test = !pathHasBrokenLink(traph[0].branch,brokenLinkIDs);  // EXP - Failover to RW
+        //else test = traph[0].portID !== portID && (treeID === myID || (!traph[0].onBrokenBranch && traph[0].isConnected));
+        const test = iffun([[isExperiment("2c"),(p)=>{return treeID === myID;}],
+                            [isExperiment("5b"),(p)=>{return !pathHasBrokenLink(traph[0].branch,brokenLinkIDs);}],
+                            [true,(p)=>{return traph[0].portID !== portID && (treeID === myID || (!traph[0].onBrokenBranch && traph[0].isConnected));}]]); 
+        if ( test ) {
+            //let branch = traph[0].branch;
+            //if ( treeID === myID ) branch = rootPath(portID);
+            const branch = iffun([[treeID === myID,()=>{return rootPath(portID);}]]);
+            if ( isExperiment("5b") ) { // EXP - failover to RW
+                const newParent = traph[0];
+                getKeys(traphs).forEach(function(t) { 
+                    const traph = traphs[t];
+                    if ( pathHasBrokenLink(traph[0].branch,brokenLinkIDs) ) {
+                        sendToFrontByPortID(traph,newParent.portID);
+                    }
+                });
+                if ( treeID !== myID ) informNewParent({"treeIDs":treeIDs,"traph":traph,"hops":newParent.hops,"branch":newParent.branch,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs});
+            }
             failoverSuccess(failoverParams);
             delete portsTried[treeID];
         } else { // Didn't find a failover path, a single search for all requesters
@@ -202,15 +286,19 @@ var TreeMgrSvc = function(params) {
         const branch = params.branch;
         const brokenBranch = params.brokenBranch;
         const brokenLinkID = params.brokenLinkID;
+        const brokenLinkIDs = params.brokenLinkIDs;
+        const treeIDs = params.treeIDs;
         BREAKPOINT(eval(breakpointTest),"failoverStatus: tree " + treeID + " node " + svc.getNodeID());
         // I am the leafward node if I don't have any requesters
         getKeys(failoverRequester[treeID]).forEach(function(brokenLinkID){
             const p = getFailoverPort({"treeID":treeID,"brokenLinkID":brokenLinkID});
             const t = getTraphByPortID(traph,p);
-            const linkID = getLinkIDFromPortID(traph,p);
-            const failoverStatusMsg = new FailoverStatusMsg({"treeID":treeID,"brokenLinkID":brokenLinkID,"status":status,"branch":appendToBranch(branch,linkID),"hops":traph[0].hops+1,"brokenBranch":brokenBranch});
-            svc.send({"port":p,"target":defaultSvcID,"envelope":failoverStatusMsg});
-            debugOutput("Failover " + status + ": " + svc.getLabel() + linkID + " " + failoverStatusMsg.stringify());
+            if ( t.isConnected ) {
+                const linkID = getLinkIDFromPortID(traph,p);
+                const failoverStatusMsg = new FailoverStatusMsg({"treeID":treeID,"brokenLinkID":brokenLinkID,"status":status,"branch":appendToBranch(branch,linkID),"hops":traph[0].hops+1,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
+                svc.send({"port":p,"target":defaultSvcID,"envelope":failoverStatusMsg});
+                debugOutput("Failover " + status + ": " + svc.getLabel() + linkID + " " + failoverStatusMsg.stringify());
+            }
         });
         function getFailoverPort(params) {
             const treeID = params.treeID;
@@ -229,37 +317,58 @@ var TreeMgrSvc = function(params) {
         const hops = value.envelope.getHops();
         const brokenBranch = value.envelope.getBrokenBranch();
         const brokenLinkID = value.envelope.getBrokenLinkID();
+        const brokenLinkIDs = value.envelope.getBrokenLinkIDs();
+        const treeIDs = value.envelope.getTreeIDs();
         const status = value.envelope.getStatus();
         const myID = svc.getNodeID();
         const traph = traphs[treeID];
-        const failoverParams = {"treeID":treeID,"traph":traph,"branch":branch,"brokenBranch":brokenBranch,"brokenLinkID":brokenLinkID};
+        const failoverParams = {"treeID":treeID,"traph":traph,"branch":branch,"brokenBranch":brokenBranch,"brokenLinkID":brokenLinkID,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs};
         BREAKPOINT(eval(breakpointTest),"failoverStatusHandler: tree " + treeID + " node " + svc.getNodeID());
         debugOutput("Failover Status Handler: " + svc.getLabel() + "portID " + portID + " " + value.envelope.stringify());
-        markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
         if ( status === FAILOVERSUCCESS ) {
-            const newParent = getTraphByPortID(traph,portID);
-            const oldParent = traph[0];
-            debugOutput("Tree Update: " + oldParent.nodeID + " " + traph[0].nodeID);
-            sendToFrontByPortID(traph,portID);
-            sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch});
-            if ( oldParent.isConnected ) { // Tell my old parent to remove me as a child
-                const undiscoveredMsg = new UndiscoveredMsg({"treeID":treeID});
-                svc.send({"port":oldParent.portID,"target":defaultSvcID,"envelope":undiscoveredMsg});
-                debugOutput("Inform old parent: " + svc.getLabel() + "old parent " + oldParent.nodeID + " " + undiscoveredMsg.stringify());
+            if ( isExperiment("5a") ) { // EXP - failover to root
+                markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
+                const newParent = getTraphByPortID(traph,portID);
+                const oldParent = traph[0];
+                if ( oldParent.onBrokenBranch && (branch === newParent.branch || !isOnBranch({"longer":branch,"shorter":newParent.branch})) ) {
+                    debugOutput("Tree Update: " + oldParent.nodeID + " " + traph[0].nodeID);
+                    sendToFrontByPortID(traph,portID);
+                    sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch});
+                    if ( oldParent.isConnected ) { // Tell my old parent to remove me as a child
+                        const undiscoveredMsg = new UndiscoveredMsg({"treeID":treeID});
+                        svc.send({"port":oldParent.portID,"target":defaultSvcID,"envelope":undiscoveredMsg});
+                        debugOutput("Inform old parent: " + svc.getLabel() + "old parent " + oldParent.nodeID + " " + undiscoveredMsg.stringify());
+                    }
+                    informNewParent({"treeIDs":[treeID],"traph":traph,"hops":hops,"branch":branch,"brokenBranch":brokenBranch});
+                }
+            } else if ( isExperiment("5b") ) { // EXP - failover to RW
+                const oldParentPortID = traph[0].portID;
+                treeIDs.forEach(function(t) {
+                    const traph = traphs[t];
+                    const home = iffun([[!traph[0].portID,(traph)=>{return traph.shift()},traph]]);
+                    //if ( !traph[0].portID ) home = traph.shift();
+                    sendToFrontByPortID(traph,portID);
+                    if ( !isExperiment("2c") ) sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch,"brokenBranches":brokenBranches,"brokenLinkIDs":brokenLinkIDs});
+                    traph[0].isChild = false;
+                    if ( home ) traphs[t].unshift(home);
+                });
+                informNewParent({"treeIDs":treeIDs,"traph":traph,"hops":hops,"branch":branch,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs});
+            } else {
+                throw "Experiment " + currentExperiment + " not implemented.";
             }
-            informNewParent({"treeID":treeID,"traph":traph,"hops":hops,"branch":branch,"brokenBranch":brokenBranch});
             failoverSuccess(failoverParams);
             delete portsTried[treeID];
         } else {
-            findNewParent({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch, "brokenLinkID":brokenLinkID});
+            findNewParent({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch, "brokenLinkID":brokenLinkID,"brokenLinkIDs":brokenLinkIDs,"treeIDs":treeIDs});
         } 
     }
     function informNewParent(params) {
-        const treeID = params.treeID;
+        const treeIDs = params.treeIDs;
         const traph = params.traph;
         const hops = params.hops;
         const branch = params.branch;
         const brokenBranch = params.brokenBranch;
+        const brokenLinkIDs = params.brokenLinkIDs;
         const myID = svc.getNodeID();
         //BREAKPOINT(eval(breakpointTest),"informNewParent: tree " + treeID + " node " + svc.getNodeID());
         traph[0].isChild = false;
@@ -268,8 +377,8 @@ var TreeMgrSvc = function(params) {
         traph[0].onBrokenBranch = false;
         // Tell my new parent to add me as a child
         const rediscoveredMsg = new RediscoveredMsg(
-            {"treeID":treeID,"hops":traph[0].hops,"sendingNodeID":myID,
-             "branch":traph[0].branch,"brokenBranch":brokenBranch});
+            {"treeIDs":treeIDs,"hops":traph[0].hops,"sendingNodeID":myID,
+             "branch":traph[0].branch,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs});
         debugOutput("Inform new parent: " + svc.getLabel() + "new parent " + traph[0].nodeID + " " + rediscoveredMsg.stringify());
         svc.send({"port":traph[0].portID,"target":defaultSvcID,"envelope":rediscoveredMsg});
     }
@@ -277,6 +386,8 @@ var TreeMgrSvc = function(params) {
         const treeID = params.treeID;
         const traph = params.traph;
         const brokenBranch = params.brokenBranch;
+        const brokenBranches = params.brokenBranches;
+        const brokenLinkIDs = params.brokenLinkIDs;
         const myID = svc.getNodeID()
         //BREAKPOINT(eval(breakpointTest),"sendPathUpdate: tree " + treeID + " node " + myID + " hops " + traph[0].hops + " branch " + traph[0].branch);
         markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
@@ -284,11 +395,13 @@ var TreeMgrSvc = function(params) {
         for ( let t = 0; t < traph.length; t++ ) { 
             if ( traph[t].isConnected ) {
                 const pathData = traph[t].linkID;
-                let newBranch = appendToBranch(traph[0].branch,pathData);
-                if ( t === 0 ) newBranch = traph[0].branch;
+                //let newBranch = appendToBranch(traph[0].branch,pathData);
+                //if ( t === 0 ) newBranch = traph[0].branch;
+                const newBranch = iffun([[t === 0,()=>{return traph[0].branch;}],
+                                         [true,   ()=>{return appendToBranch(traph[0].branch,pathData);}]]);
                 const rediscoverMsg = new RediscoverMsg(
                     {"sendingNodeID":svc.getNodeID(),"treeID":treeID,"hops":traph[0].hops+1,"branch":newBranch,
-                     "brokenBranch":brokenBranch});
+                     "brokenBranch":brokenBranch,"brokenBranches":brokenBranches,"brokenLinkIDs":brokenLinkIDs});
                 const letter = {"port":traph[t].portID,"target":defaultSvcID,"envelope":rediscoverMsg};
                 debugOutput("Send Rediscover: " + svc.getLabel() + traph[t].portID + " " + traph[t].nodeID + " " + letter.envelope.stringify());
                 svc.send(letter);
@@ -306,23 +419,28 @@ var TreeMgrSvc = function(params) {
         const branch = envelope.getBranch();
         const brokenBranch = envelope.getBrokenBranch();
         const brokenLinkID = envelope.getBrokenLinkID();
+        const newBrokenLinkIDs = envelope.getBrokenLinkIDs();
         const traph = traphs[treeID];
         const sender = getTraphByPortID(traph,portID).nodeID;
-        BREAKPOINT(eval(breakpointTest), "rediscoverHandler: tree " + treeID + " node " + svc.getNodeID() + " " + portID);
+        //BREAKPOINT(eval(breakpointTest), "rediscoverHandler: tree " + treeID + " node " + svc.getNodeID() + " " + portID);
         markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
         debugOutput("Rediscover Handler: " + svc.getLabel() + portID + " " + sender + " " + envelope.stringify());
         const traphToUpdate = getTraphByPortID(traph,portID);
+        if ( isExperiment("5b") ) { // EXP - failover to RW
+            brokenLinkIDs = brokenLinkIDs.concat(newBrokenLinkIDs.filter(function(item){
+                return brokenLinkIDs.indexOf(item) < 0;
+            }));
+        }
         if ( isOnBrokenBranch(branch) || !traphToUpdate.onBrokenBranch ||
              isOnBranch({"longer":branch,"shorter":traphToUpdate.branch}) ) return;
         checkForCycle(branch);
-        markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
         traphToUpdate.hops = hops;
         traphToUpdate.branch = branch;
         traphToUpdate.onBrokenBranch = false;
         // Forward message on all ports on the broken branch if message is from my parent
         if ( newParentPortID[treeID] === portID ||
              !newParentPortID[treeID] && traph[0].portID === portID ) {
-            sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch});
+            if ( !isExperiment("5b") ) sendPathUpdate({"treeID":treeID,"traph":traph,"brokenBranch":brokenBranch,"brokenLinkIDs":brokenLinkIDs});
             delete newParentPortID[treeID];
         }
         function checkForCycle(branch) {
@@ -336,19 +454,21 @@ var TreeMgrSvc = function(params) {
     }
     function rediscoveredHandler(value) {
         const portID = value.portID;
-        const treeID = value.envelope.getTreeID();
+        const treeIDs = value.envelope.getTreeIDs();
         const hops = value.envelope.getHops();
         const brokenBranch = value.envelope.getBrokenBranch();
         const sendingNodeID = value.envelope.getSendingNodeID();
         const branch = value.envelope.getBranch();
-        const traph = traphs[treeID];
-        //BREAKPOINT(eval(breakpointTest), "rediscoveredHandler: tree " + treeID + " node " + svc.getNodeID() + " " + portID);
-        markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
-        const traphToUpdate = getTraphByPortID(traphs[treeID],portID);
-        traphToUpdate.branch = branch;
-        traphToUpdate.hops = hops;
-        traphToUpdate.isChild = true;
-        traphToUpdate.onBrokenBranch = false;
+        //BREAKPOINT(eval(breakpointTest), "rediscoveredHandler: trees " + treeIDs + " node " + svc.getNodeID() + " " + portID);
+        treeIDs.forEach(function(treeID) {
+            const traph = traphs[treeID];
+            markBrokenBranches({"traph":traph,"brokenBranch":brokenBranch});
+            const traphToUpdate = getTraphByPortID(traphs[treeID],portID);
+            traphToUpdate.branch = branch;
+            traphToUpdate.hops = hops;
+            traphToUpdate.isChild = true;
+            traphToUpdate.onBrokenBranch = false;
+        });
         debugOutput("Rediscovered Handler: " + svc.getLabel() + "child " + portID + " " + value.envelope.stringify());
     }
     function undiscoveredHandler(value) {
@@ -358,29 +478,54 @@ var TreeMgrSvc = function(params) {
         const traphToUpdate = getTraphByPortID(traphs[treeID],portID);
         traphToUpdate.isChild = false;
     }
-// TreeMgr utility functions
+    // TreeMgr utility functions
+    function isExperiment(experiment) {
+        return currentExperiment.indexOf(experiment) > -1;
+    }
+    function pathHasBrokenLink(path,brokenLinkIDs) {
+        let found = false;
+        if ( path ) {
+            const array = path.split(",");
+            brokenLinkIDs.forEach(function(brokenLinkID) {
+                found = found || array.indexOf(brokenLinkID) > -1;
+            });
+        }
+        return found;
+    }
     function isOnBranch(params) {
-        if ( true ) {
+        // EXP - Root port only
+        if ( isExperiment("2a") ) {
             // Uses full path info
             return 0 === params.longer.indexOf(params.shorter);
-        } else if ( true ) {
-            // Uses root port only for trie data
-            const branch = params.longer.split(",");
-            const test = params.shorter.split(",");
-            return branch[0] === test[0];
+        } else if ( isExperiment("2b") ) {
+            // Uses root port only for path data
+            return getFirstStep(params.longer) === getFirstStep(params.shorter);
+        } else if ( isExperiment("2c") ) {
+            return false;
         } else {
             // No path info, just find a path to the root
             // Generate an error for now
             throw "isOnBranch: Case not implemented";
         }
     }
+    function getFirstStep(path) {
+        const a = path.split(",");
+        return a[0];
+    }
     function markBrokenBranches(params) {
         const traph = params.traph;
         const brokenBranch = params.brokenBranch;
         // Must remember broken branches for next failure
-        if ( brokenBranches.indexOf(brokenBranch) === -1 ) brokenBranches.push(brokenBranch);
+        if ( brokenBranches.indexOf(brokenBranch) === -1 ) {
+            portsTried[traph[0].treeID] = [0]; // Clear on seeing new broken branch
+            brokenBranches.push(brokenBranch);
+        }
         for ( const t in traph ) {
-            traph[t].onBrokenBranch = isOnBrokenBranch(traph[t].branch);
+            // Don't use remembered broken branches if using only root port info
+            if ( isExperiment("1b") ) {
+                traph[t].onBrokenBranch = isOnBranch({"longer":traph[t].branch,"shorter":brokenBranch});
+            }
+            else traph[t].onBrokenBranch = isOnBrokenBranch(traph[t].branch);
         }
     }
     function isOnBrokenBranch(branch) {
@@ -398,12 +543,30 @@ var TreeMgrSvc = function(params) {
     }
     function nextTrialParent(treeID,traph) {
         // Uncomment the one you want to use
-        // let trialParent = prunedLinksFirst(treeID,traph);
-        // let trialParent = nextSmallestHops(treeID,traph);
-        let trialParent = nextSmallestHopsBiasPruned(treeID,traph);
+        // EXP
+        //let trialParent;
+        const untriedPorts = untried(traph,treeID);
+        const notParent = nonParent(untriedPorts,traph[0].portID);
+        //let filtered;
+        //if ( isExperiment("2c") ) filtered = connected(untriedPorts); 
+        //else                      filtered = connected(notParent);
+        const filtered = iffun([[isExperiment("2c"),()=>{return connected(untriedPorts);}],
+                                [true,              ()=>{return connected(notParent);}]]);
+        //if ( isExperiment("3a") ) trialParent = smallestHopsPrunedUnbroken(filtered); 
+        //else if ( isExperiment("3b") ) trialParent = nextSmallestHops(filtered);
+        //else if ( isExperiment("3c") ) trialParent = prunedLinksFirst(filtered);
+        //else throw currentExperiment + " is not valid";
+        const trialParent = iffun([[isExperiment("3a"),()=>{return smallestHopsPrunedUnbroken(filtered);}],
+                                   [isExperiment("3b"),()=>{return nextSmallestHops(filtered);}],
+                                   [isExperiment("3c"),()=>{return prunedLinksFirst(filtered);}],
+                                   [true,              ()=>{throw currentExperiment + " is not valid";}]]);
+        //let trialParent = prunedLinksFirst(treeID,traph);
+        //let trialParent = unbrokenPrunedLinksFirst(treeID,traph);
+        //let trialParent = nextSmallestHops(treeID,traph);
+        //let trialParent = nextSmallestHopsBiasPruned(treeID,traph);
         // let trialParent = nextSmallestHopsBiasPrunedUnbroken(treeID,traph);
-        // Never use current parent as trial parent
-        if ( trialParent && trialParent.portID === traph[0].portID ) {
+        // Never use current parent as trial parent - Not needed except for EXP 2a - failover to RW
+        if ( isExperiment("2b") && trialParent && trialParent.portID === traph[0].portID ) {
             portsTried[treeID].push(trialParent.portID);
             trialParent = nextTrialParent(treeID,traph);
         }
@@ -417,62 +580,51 @@ var TreeMgrSvc = function(params) {
         }
         return trialParent;
     }
-    function prunedLinksFirst(treeID,traph) {
-        // First look for a pruned port not on the broken branch
-        for ( let t = 1; t < traph.length; t++ ) {  // traph[0] is parent
-            if ( traph[t].isConnected && !traph[t].isChild && !traph[t].onBrokenBranch &&
-                 portUntried(treeID,traph[t].portID) ) return traph[t];
-        }
-        // If that fails, try a pruned port on the broken branch
-        for ( let t = 1; t < traph.length; t++ ) {
-            if ( traph[t].isConnected && !traph[t].isChild && traph[t].onBrokenBranch &&
-                 portUntried(treeID,traph[t].portID) ) return traph[t];
-        }
-        // If that fails, try a child
-        for ( let t = 1; t < traph.length; t++ ) {
-            if ( traph[t].isConnected && traph[t].isChild &&
-                 portUntried(treeID,traph[t].portID) ) return trah[t];
-        }
+    function smallestHopsPrunedUnbroken(traph) {
+        const prunedTraph = pruned(traph);
+        const minHops = smallestHops(prunedTraph); 
+        const unbrokenTraph = unbroken(minHops);
+        return unbrokenTraph.concat(prunedTraph,children(traph))[0];
+    }
+    function prunedLinksFirst(traph) {
+        const childrenTraph = children(traph);
+        const prunedTraph = pruned(traph);
+        return prunedTraph.concat(childrenTraph)[0];
     }   
-    function nextSmallestHops(treeID,traph) {
-        let min; // No matter how big a number I pick, it won't be big enough!
-        let minElement;
-        getKeys(traph).forEach(function(t) {
-            if ( traph[t].isConnected && (!min || traph[t].hops <= min)
-                 && portUntried(treeID,traph[t].portID)  ) {
-                min = min || traph[t].hops;
-                minElement = t;
-            }
-        });
-        if ( minElement ) return traph[minElement];
-        else              return null;
+    function unbrokenPrunedLinksFirst(traph) {
+        const childrenTraph = children(traph);
+        const prunedTraph = pruned(traph);
+        const unbrokenTraph = unbroken(prunedTraph);
+        return unbrokentTraph.concat(prunedTraph,childrenTraph);
+    }   
+    function nextSmallestHopsBiasPruned(traph) {
+        const minHops = smallestHops(traph);
+        const prunedTraph = pruned(minHops);
+        return prunedTraph.concat(minHops);
     }
-    function nextSmallestHopsBiasPruned(treeID,traph) {
-        let min; // No matter how big a number I pick, it won't be big enough!
-        let minElement;
-        getKeys(traph).forEach(function(t) {
-            if ( traph[t].isConnected && (!min || traph[t].hops <= min)
-                 && portUntried(treeID,traph[t].portID)  ) {
-                min = min || traph[t].hops;
-                if ( !minElement || !traph[t].isChild) minElement = t;
-            }
-        });
-        if ( minElement ) return traph[minElement];
-        else              return null;
+    function nonParent(traph,portID) {
+        if ( traph[0].portID === portID ) return traph.slice(1);
+        else                              return traph;
     }
-    function nextSmallestHopsBiasPrunedUnbroken(treeID,traph) {
-        let min; // No matter how big a number I pick, it won't be big enough!
-        let minElement;
-        getKeys(traph).forEach(function(t) {
-            if ( traph[t].isConnected && (!min || traph[t].hops <= min)
-                 && portUntried(treeID,traph[t].portID)  ) {
-                min = min || traph[t].hops;
-                if ( !minElement || !traph[t].isChild && !traph[t].onBrokenBranch ) minElement = t;
-                else if ( !minElement || !traph[t].isChild ) minElement = t;
+    function untried(traph,treeID) { return traph.filter(function(x) {
+        return portsTried[treeID].indexOf(x.portID) < 0;
+    });}
+    function connected(traph) { return traph.filter(function(x) { return x.isConnected; });}
+    function pruned(traph) { return traph.filter(function(x){ return !x.isChild; });}
+    function unbroken(traph) { return traph.filter(function(x){ return !x.onBrokenBranch; });}
+    function children(traph) { return traph.filter(function(x){ return x.isChild; });}
+    function smallestHops(traph) {
+        let min;
+        let minHopTraphs = [];
+        if ( traph.length === 0 ) return minHopTraphs;
+        Object.values(traph).forEach(function(element) {
+            if ( min && element.hops === min ) minHopTraphs.push(element);
+            if ( element.isConnected && !min || element.hops < min ) {
+                min = element.hops;
+                minHopTraphs = [element];
             }
         });
-        if ( minElement ) return traph[minElement];
-        else              return null;
+        return minHopTraphs;
     }
     function portUntried(treeID,portID) {
         return portsTried[treeID] && portsTried[treeID].indexOf(portID) < 0;
@@ -489,7 +641,7 @@ var TreeMgrSvc = function(params) {
     }
     function appendToBranch(branch,element) { return branch + "," + element; }
     function trimBranch(branch) {
-        let array = branch.split(",");
+        const array = branch.split(",");
         const last = array.pop();
         return array.join(",");
     }
@@ -519,11 +671,42 @@ var TreeMgrSvc = function(params) {
         }
         throw "getLinkIDFromPortID: No entry for port: " + portID;
     }
-    function initObject(o) {return o || {}; };
-    function initArray(a) {return a || []; };
-    function getKeys(o) {
-        let keys = [];
-        if ( o && typeof o === "object" ) keys = Object.keys(o);
-        return keys;
+    function brokenPath(branch) {
+        let result;
+        const links = branch.split(',');
+        Object.keys(links).forEach(function(link) {
+            if ( dataCenter.brokenLinks[links[link]] ) result = branch;
+        });
+        return result;
+    }
+    function brokenTreePaths(treeID) {
+        const result = [];
+        const nodes = dataCenter.getNodes();
+        Object.keys(nodes).forEach(function(nodeID) {
+            const traph = getTraph(nodeID,treeID);
+            Object.keys(traph).forEach(function(t) {
+                if ( traph[t].isConnected ) {
+                    const found = brokenPath(traph[t].branch);
+                    if ( found ) result.push(traph[t]);
+                }
+            });
+        });
+        return result;
+    }
+    function brokenPaths() {
+        let result = [];
+        const nodes = dataCenter.getNodes();
+        Object.keys(nodes).forEach(function(nodeID) {
+            Object.keys(nodes).forEach(function(treeID) {
+                const traph = getTraph(nodeID,treeID);
+                Object.keys(traph).forEach(function(t) {
+                    if ( traph[t].isConnected ) {
+                        const found = brokenPath(traph[t].branch);
+                        if ( found ) result.push(traph[t]);
+                    }
+                });
+            });
+        });
+        return result;
     }
 }

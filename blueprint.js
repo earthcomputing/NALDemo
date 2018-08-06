@@ -1,8 +1,8 @@
 'use strict';
 let traceMsgs = failoverMsgs();
-let breakpointTest = 'treeID === "o"';
-let msgFilter = '"treeID":"o"';
-let linkIDsToBreak = ["lF","lJ","lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq"];//,"Lf","LA","Ly","LI","LJ";
+let breakpointTest = true;
+let msgFilter = " ";
+let linkIDsToBreak = ["lF","lJ"];//,"lH","Lp","Lo","Lm","La","lY","lK","lI","Le","lL","Lq","Lf","LA","Ly","LI","LJ";
 let config;
 let doTrace = false;
 let debugging = false;

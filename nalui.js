@@ -46,12 +46,14 @@ window.onload = function() {
         configForm.appendChild(document.createElement("br"));
     }
 };
-function build() {
+function build(configuration) {
+    if ( configuration ) setConfig(configuration);
     d3.selectAll(".link").remove();
     d3.selectAll(".node").remove();
     showTree = "";
     dataCenter = new DataCenterFactory(blueprint);
     dataCenter.showConfiguration({"tree":false,"root":false});
+    return dataCenter;
 }
 function resetView() {
     showTree = "";

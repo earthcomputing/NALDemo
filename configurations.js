@@ -7,14 +7,14 @@
 const configurations = {
     "grid" : {
         "name":"Grid",
-        "nports":4,
+        "nports":5,
         "xscale":0.7,"yscale":0.7},
     "baranDistributedGrid": {
         "name":"Baran Distributed Grid",
         "nports":6,
         "xscale":6,"yscale":6,
         "nodes": baranGridNodes(),
-        "links": baranDistributedLinks(),},
+        "links": baranDistributedLinks()},
     "baranKleinbergGrid": {
         "name":"Baran + Kleinberg Links",
         "nports":6,
