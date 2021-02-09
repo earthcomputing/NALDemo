@@ -19,7 +19,8 @@ function debugOutput(msg,condition) {
 // Get the line number of the call
 function getSourceLine() {
     try { throw Error("") } catch(err) {
-        const caller_line = err.stack.split("\n")[4];
+        let caller_line = err.stack.split("\n")[4];
+        if ( !caller_line || caller_line.indexOf("native") ) caller_line = err.stack.split("\n")[3];
         const index = caller_line.indexOf("at ");
         const clean = caller_line.slice(index+2, caller_line.length);
         const trimmed = clean.split("/").pop().split(":");
@@ -39,6 +40,13 @@ function makeResolver() {
     rcount++;
     return result;
 }
+function initObject(o) {return o || {}; };
+function initArray(a) {return a || []; };
+function getKeys(o) {
+    let keys = [];
+    if ( o && typeof o === "object" ) keys = Object.keys(o);
+    return keys;
+}
 function sendToBack(array,index) {
     if ( -1 < index && index < array.length - 1 ) {
         const cut = array.splice(index,1)[0];
@@ -57,52 +65,6 @@ function clone(o) {
 }
 function rejected(error) {
     console.error(JSON.stringify(error));
-}
-function getTraph(node,tree) {
-    const nodes = dataCenter.getNodes();
-    if ( nodes[node] ) {
-        const svcs = nodes[node].getServices();
-        const svc = svcs[defaultSvcID];
-        return svc.getTraphs()[tree];
-    } else return "No node named " + node;
-}
-function brokenPath(branch) {
-    let result;
-    const links = branch.split(',');
-    Object.keys(links).forEach(function(link) {
-        if ( dataCenter.brokenLinks[links[link]] ) result = branch;
-    });
-    return result;
-}
-function brokenTreePaths(treeID) {
-    const result = [];
-    const nodes = dataCenter.getNodes();
-    Object.keys(nodes).forEach(function(nodeID) {
-        const traph = getTraph(nodeID,treeID);
-        Object.keys(traph).forEach(function(t) {
-            if ( traph[t].isConnected ) {
-                const found = brokenPath(traph[t].branch);
-                if ( found ) result.push(traph[t]);
-            }
-        });
-    });
-    return result;
-}
-function brokenPaths() {
-    let result = [];
-    const nodes = dataCenter.getNodes();
-    Object.keys(nodes).forEach(function(nodeID) {
-        Object.keys(nodes).forEach(function(treeID) {
-            const traph = getTraph(nodeID,treeID);
-            Object.keys(traph).forEach(function(t) {
-                if ( traph[t].isConnected ) {
-                    const found = brokenPath(traph[t].branch);
-                    if ( found ) result.push(traph[t]);
-                }
-            });
-        });
-    });
-    return result;
 }
 function getPendingQ(nodeID) {
     const nodes = dataCenter.getNodes();
@@ -127,6 +89,21 @@ function getAllPendingQ() {
         });
     });
     return output;
+}
+function getTraph(node,tree) {
+    const nodes = dataCenter.getNodes();
+    if ( nodes[node] ) {
+        const svcs = nodes[node].getServices();
+        const svc = svcs[defaultSvcID];
+        return svc.getTraphs()[tree];
+    } else return "No node named " + node;
+}
+// An if-block that returns a result.  clauses = [[cond,fn,params],...]
+function iffun(clauses) {
+    const clause = clauses.shift();
+    if ( !clause ) return undefined;
+    if ( clause[0] ) return clause[1]();
+    else return iffun(clauses);
 }
 // Copied from http://jcward.com/UUID.js for safety
 /**

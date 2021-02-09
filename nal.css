@@ -26,6 +26,7 @@
 }
 .linkbroken {
     stroke : red;
+    stroke-width : 4px;
 }
 .nodebroken {
     fill : red;
