@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright © 2016-present Earth Computing Corporation. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 'use strict';
 // "nodes":[{"name":"xyz","x":1.2,"y":3.4}]
 // "links":[{"name":"abc","nodeIDs":["n1":"n2"]}]

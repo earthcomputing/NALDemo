@@ -1,3 +1,7 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright © 2016-present Earth Computing Corporation. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 // Experiment naming convention explained in Section 10 of
 //  ~/Dropbox (Earth Computing)/Earth Computing Team Folder/Architecture/Tree Building and Healing/Tree Building and Healing AHK.pdf
 'use strict';
