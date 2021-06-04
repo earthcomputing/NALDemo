@@ -3,6 +3,10 @@
 'use strict';
 // Start of code for experiment
 if ( !currentExperiment ) currentExperiment = '1a2a3a4a5a'; // Baseline options
+/*---------------------------------------------------------------------------------------------
+ *  Copyright © 2016-present Earth Computing Corporation. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var TreeMgrSvc = function(params) {
     const MAXTRIES = 0;  // No retries because not dealing with overlapping failures
     const FAILOVERSUCCESS = "SUCCESS";
